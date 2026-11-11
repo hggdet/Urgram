@@ -60,7 +60,7 @@ def main():
     # --- extract the SelfSigned cert + key from the template p12 -------------
     make_dir = os.path.join(repo_root, 'build-system', 'Make')
     gen_src = open(os.path.join(make_dir, 'GenerateProfiles.py')).read()
-    m = re.search(r"p12_password\s*=\s*'([^']+)'", gen_src)
+    m = re.search(r"""p12_password\s*=\s*['"]([^'"]*)['"]""", gen_src)
     if not m:
         print('Could not find the SelfSigned p12 password in GenerateProfiles.py')
         sys.exit(1)
@@ -112,7 +112,7 @@ def main():
         plist_path = os.path.join(tmp, name + '.plist')
         with open(plist_path, 'wb') as f:
             plistlib.dump(profile, f, fmt=plistlib.FMT_XML)
-        run(['openssl', 'smime', '-sign', '-binary', '-noattr', '-md', 'sha256',
+        run(['openssl', 'smime', '-sign', '-binary', '-noattr', '-nodetach', '-md', 'sha256',
              '-signer', cert_pem_path, '-inkey', key_pem_path,
              '-in', plist_path, '-outform', 'DER',
              '-out', os.path.join(out_profiles, name)])
