@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate Longram build codesigning data from Telegram's fake-codesigning templates.
+"""Generate Codegram build codesigning data from Telegram's fake-codesigning templates.
 
 Takes build-system/fake-codesigning (Telegram's own template profiles, signed for
 ph.telegra.Telegraph) and produces an equivalent directory whose profiles carry
-Longram's bundle id, app group and team, re-signed with the same bundled
+Codegram's bundle id, app group and team, re-signed with the same bundled
 SelfSigned certificate. The Make.py build only *parses* these profiles
 (openssl smime -verify -noverify) to harvest entitlements; the shipped IPA is
 fake-signed and is re-signed by the distributor's own certificate afterwards.
@@ -50,7 +50,7 @@ def main():
     ap.add_argument('--templates', default=os.path.join(repo_root, 'build-system', 'fake-codesigning'))
     ap.add_argument('--out', required=True)
     ap.add_argument('--team', default='BUMPZKB7FC')
-    ap.add_argument('--bundle', default='com.hggdet.longram')
+    ap.add_argument('--bundle', default='com.hggdet.codegram')
     args = ap.parse_args()
 
     pairs = [(OLD_TEAM + '.' + OLD_BUNDLE, args.team + '.' + args.bundle),
@@ -99,12 +99,12 @@ def main():
         profile = plistlib.loads(raw)
 
         suffix = name.replace('.mobileprovision', '')
-        profile['Name'] = 'Longram ' + suffix
+        profile['Name'] = 'Codegram ' + suffix
         profile['UUID'] = str(uuid.uuid4()).upper()
         profile['CreationDate'] = now
         profile['ExpirationDate'] = now + timedelta(days=730)
         profile['TeamIdentifier'] = [args.team]
-        profile['TeamName'] = 'Longram'
+        profile['TeamName'] = 'Codegram'
         profile['DeveloperCertificates'] = [cert_der]
         profile.pop('DER-Encoded-Profile', None)
         profile = deep_replace(profile, pairs)
