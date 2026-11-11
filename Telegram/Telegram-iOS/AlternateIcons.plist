@@ -106,4 +106,31 @@
         <key>UIPrerenderedIcon</key>
         <true/>
     </dict>
+    <key>White</key>
+    <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+            <string>WhiteIcon</string>
+        </array>
+        <key>UIPrerenderedIcon</key>
+        <true/>
+    </dict>
+    <key>Violet</key>
+    <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+            <string>VioletIcon</string>
+        </array>
+        <key>UIPrerenderedIcon</key>
+        <true/>
+    </dict>
+    <key>DeepBlue</key>
+    <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+            <string>DeepBlueIcon</string>
+        </array>
+        <key>UIPrerenderedIcon</key>
+        <true/>
+    </dict>
 </dict>
