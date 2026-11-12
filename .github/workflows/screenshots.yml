@@ -1,0 +1,99 @@
+name: Urgram Screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  shots:
+    runs-on: macos-26
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select newest Xcode
+        run: |
+          ls /Applications | grep -i xcode || true
+          NEWEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $NEWEST"
+          sudo xcode-select -s "$NEWEST/Contents/Developer"
+          xcodebuild -version
+
+      - name: Generate codesigning folders
+        run: |
+          python3 build-system/urgram/generate_codesigning.py --out "$RUNNER_TEMP/urgram-codesigning"
+          ls "$RUNNER_TEMP/urgram-codesigning"
+
+      - name: Write build configuration
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          cfg = {
+            "bundle_id": "com.hggdet.urgram",
+            "api_id": os.environ["TG_API_ID"],
+            "api_hash": os.environ["TG_API_HASH"],
+            "team_id": "BUMPZKB7FC",
+            "app_specific_url_scheme": "urgram",
+            "premium_iap_product_id": "",
+            "is_internal_build": "true",
+            "is_appstore_build": "false",
+            "appstore_id": "0",
+            "enable_siri": False,
+            "enable_icloud": False,
+          }
+          with open("configuration.json", "w") as f:
+              json.dump(cfg, f)
+          print("configuration.json written")
+          EOF
+
+      - name: Build Urgram for simulator
+        run: |
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            build \
+            --buildNumber=1 \
+            --configuration=debug_sim_arm64 \
+            --codesigningInformationPath="$RUNNER_TEMP/urgram-codesigning" \
+            --configurationPath="$PWD/configuration.json"
+
+      - name: Locate the built app
+        id: locate
+        run: |
+          echo "== artifacts =="
+          APP=$(find bazel-out -maxdepth 6 -type d -name "Telegram.app" 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then APP=$(find build -name "*.app" 2>/dev/null | head -1); fi
+          if [ -z "$APP" ]; then APP=$(find . -maxdepth 4 -name "Telegram.app" 2>/dev/null | head -1); fi
+          if [ -z "$APP" ]; then echo "NO_APP_FOUND"; find bazel-out -maxdepth 4 -type d -name "*.app" 2>/dev/null | head -20; exit 1; fi
+          echo "APP_PATH=$APP" >> "$GITHUB_OUTPUT"
+          echo "Found: $APP"
+
+      - name: Boot simulator, install, launch, screenshot
+        run: |
+          set -x
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "import json,sys; d=json.load(sys.stdin); rs=[r for r in d['runtimes'] if r['name'].startswith('iOS')]; print(rs[-1]['identifier'])")
+          DEVICE_TYPE=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys; d=json.load(sys.stdin); ts=[t for t in d['devicetypes'] if t['name'].startswith('iPhone') and 'Pro Max' in t['name']]; print((ts[-1] if ts else [t for t in d['devicetypes'] if t['name'].startswith('iPhone')][-1])['identifier'])")
+          UDID=$(xcrun simctl create UrgramShot "$DEVICE_TYPE" "$RUNTIME")
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          mkdir -p shots
+          xcrun simctl install "$UDID" "${{ steps.locate.outputs.APP_PATH }}"
+          xcrun simctl launch "$UDID" com.hggdet.urgram || true
+          sleep 12
+          xcrun simctl io "$UDID" screenshot shots/01-welcome.png
+          xcrun simctl spawn "$UDID" launchctl stop com.apple.SpringBoard 2>/dev/null || true
+          sleep 3
+          xcrun simctl io "$UDID" screenshot shots/02-springboard-maybe.png || true
+          ls -la shots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Urgram-Screenshots
+          path: shots/
+          if-no-files-found: warn
