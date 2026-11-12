@@ -1,0 +1,195 @@
+name: Urgram Screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  shots:
+    runs-on: macos-26
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select newest Xcode
+        run: |
+          ls /Applications | grep -i xcode || true
+          NEWEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $NEWEST"
+          sudo xcode-select -s "$NEWEST/Contents/Developer"
+          xcodebuild -version
+
+      - name: Generate codesigning folders
+        run: |
+          python3 build-system/urgram/generate_codesigning.py --out "$RUNNER_TEMP/urgram-codesigning"
+          ls "$RUNNER_TEMP/urgram-codesigning"
+
+      - name: Write build configuration
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          cfg = {
+            "bundle_id": "com.hggdet.urgram",
+            "api_id": os.environ["TG_API_ID"],
+            "api_hash": os.environ["TG_API_HASH"],
+            "team_id": "BUMPZKB7FC",
+            "app_specific_url_scheme": "urgram",
+            "premium_iap_product_id": "",
+            "is_internal_build": "true",
+            "is_appstore_build": "false",
+            "appstore_id": "0",
+            "enable_siri": False,
+            "enable_icloud": False,
+          }
+          with open("configuration.json", "w") as f:
+              json.dump(cfg, f)
+          print("configuration.json written")
+          EOF
+
+      - name: Build Urgram for simulator
+        run: |
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            build \
+            --buildNumber=1 \
+            --configuration=debug_sim_arm64 \
+            --codesigningInformationPath="$RUNNER_TEMP/urgram-codesigning" \
+            --configurationPath="$PWD/configuration.json"
+
+      - name: Locate the built app
+        id: locate
+        run: |
+          echo "== artifacts =="
+          APP=""
+          # The sim build produces an IPA, not a loose .app (Make.py: bazel-bin/Telegram/Telegram.ipa).
+          # Unzip it and use the .app inside Payload/.
+          IPA="bazel-bin/Telegram/Telegram.ipa"
+          if [ -f "$IPA" ]; then
+            mkdir -p /tmp/urgram-sim-app
+            unzip -o -q "$IPA" -d /tmp/urgram-sim-app
+            if [ -d "/tmp/urgram-sim-app/Payload/Telegram.app" ]; then APP="/tmp/urgram-sim-app/Payload/Telegram.app"; fi
+          fi
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then
+            for CAND in bazel-bin/Telegram/Telegram.app bazel-bin/Telegram.app; do
+              if [ -d "$CAND" ]; then APP="$CAND"; break; fi
+            done
+          fi
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then APP=$(find -L bazel-bin -maxdepth 4 -type d -name "Telegram.app" 2>/dev/null | head -1); fi
+          if [ -z "$APP" ] || [ ! -d "$APP" ]; then echo "NO_APP_FOUND"; ls bazel-bin/Telegram/ 2>/dev/null | head -30; exit 1; fi
+          echo "APP_PATH=$APP" >> "$GITHUB_OUTPUT"
+          echo "Found: $APP"
+
+      - name: Boot simulator, install, launch, screenshot
+        run: |
+          set -x
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "import json,sys; d=json.load(sys.stdin); rs=[r for r in d['runtimes'] if r['name'].startswith('iOS')]; print(rs[-1]['identifier'])")
+          DEVICE_TYPE=$(xcrun simctl list devicetypes -j | python3 -c "import json,sys; d=json.load(sys.stdin); ts=[t for t in d['devicetypes'] if t['name'].startswith('iPhone') and 'Pro Max' in t['name']]; print((ts[-1] if ts else [t for t in d['devicetypes'] if t['name'].startswith('iPhone')][-1])['identifier'])")
+          UDID=$(xcrun simctl create UrgramShot "$DEVICE_TYPE" "$RUNTIME")
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          mkdir -p shots
+          APP_SRC="${{ steps.locate.outputs.APP_PATH }}"
+          # --- Baseline: the app as built ---
+          xcrun simctl install "$UDID" "$APP_SRC"
+          xcrun simctl launch "$UDID" com.hggdet.urgram || true
+          sleep 12
+          xcrun simctl io "$UDID" screenshot shots/01-welcome.png
+          xcrun simctl terminate "$UDID" com.hggdet.urgram || true
+          xcrun simctl uninstall "$UDID" com.hggdet.urgram || true
+          # --- Foreign-cert simulation: reproduce the user's re-signing geometry ---
+          # Runtime bundle id becomes his profile's fixed id; the app is entitled
+          # ONLY to the profile's generic groups; the profile is embedded.
+          FOREIGN_ID="app.bronze4966.diamond1105"
+          cp -R "$APP_SRC" /tmp/UrgramForeign.app
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $FOREIGN_ID" /tmp/UrgramForeign.app/Info.plist
+          for APPEX in /tmp/UrgramForeign.app/PlugIns/*.appex; do
+            [ -d "$APPEX" ] || continue
+            OLD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APPEX/Info.plist")
+            SUFFIX="${OLD#com.hggdet.urgram}"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${FOREIGN_ID}${SUFFIX}" "$APPEX/Info.plist"
+          done
+          cat > /tmp/fake-profile.xml <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>Name</key><string>SimulatedForeignProfile</string>
+            <key>UUID</key><string>11111111-2222-3333-4444-555555555555</string>
+            <key>TeamIdentifier</key><array><string>BUMPZKB7FC</string></array>
+            <key>Entitlements</key>
+            <dict>
+              <key>application-identifier</key><string>BUMPZKB7FC.app.bronze4966.diamond1105</string>
+              <key>com.apple.developer.team-identifier</key><string>BUMPZKB7FC</string>
+              <key>application-groups</key>
+              <array>
+                <string>group.3c5073810cf84fc7.1</string>
+                <string>group.3c5073810cf84fc7.2</string>
+              </array>
+              <key>keychain-access-groups</key>
+              <array><string>BUMPZKB7FC.app.bronze4966.diamond1105</string></array>
+            </dict>
+          </dict>
+          </plist>
+          XML
+          cp /tmp/fake-profile.xml /tmp/UrgramForeign.app/embedded.mobileprovision
+          cat > /tmp/foreign-entitlements.plist <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key><string>BUMPZKB7FC.app.bronze4966.diamond1105</string>
+            <key>com.apple.developer.team-identifier</key><string>BUMPZKB7FC</string>
+            <key>application-groups</key>
+            <array>
+              <string>group.3c5073810cf84fc7.1</string>
+              <string>group.3c5073810cf84fc7.2</string>
+            </array>
+            <key>keychain-access-groups</key>
+            <array><string>BUMPZKB7FC.app.bronze4966.diamond1105</string></array>
+          </dict>
+          </plist>
+          XML
+          resign_app() {
+            local TARGET="$1"
+            find "$TARGET" -type d \( -name "*.framework" -o -name "*.appex" \) -print0 | while IFS= read -r -d '' P; do codesign --force --sign - "$P" >/dev/null 2>&1 || true; done
+            find "$TARGET" -name "*.dylib" -type f -print0 | while IFS= read -r -d '' P; do codesign --force --sign - "$P" >/dev/null 2>&1 || true; done
+            # Plain ad-hoc signing WITHOUT the foreign entitlements file:
+            # stamping foreign application-groups/keychain entitlements made the
+            # simulator SpringBoard deny the launch outright (run 43213002031),
+            # so the app code never even ran. The group-fallback logic is still
+            # exercised through the foreign bundle id + embedded profile.
+            codesign --force --sign - "$TARGET"
+            codesign --verify --verbose=2 "$TARGET" || true
+          }
+          resign_app /tmp/UrgramForeign.app
+          xcrun simctl install "$UDID" /tmp/UrgramForeign.app
+          xcrun simctl launch "$UDID" "$FOREIGN_ID" || true
+          sleep 15
+          xcrun simctl io "$UDID" screenshot shots/02-foreign-with-profile.png
+          xcrun simctl terminate "$UDID" "$FOREIGN_ID" || true
+          xcrun simctl uninstall "$UDID" "$FOREIGN_ID" || true
+          # --- Worst case: same re-signing but NO embedded profile at all ---
+          cp -R /tmp/UrgramForeign.app /tmp/UrgramNoProfile.app
+          rm -f /tmp/UrgramNoProfile.app/embedded.mobileprovision
+          resign_app /tmp/UrgramNoProfile.app
+          xcrun simctl install "$UDID" /tmp/UrgramNoProfile.app
+          xcrun simctl launch "$UDID" "$FOREIGN_ID" || true
+          sleep 15
+          xcrun simctl io "$UDID" screenshot shots/03-foreign-no-profile.png
+          xcrun simctl terminate "$UDID" "$FOREIGN_ID" || true
+          sleep 2
+          xcrun simctl io "$UDID" screenshot shots/04-springboard.png || true
+          ls -la shots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Urgram-Screenshots
+          path: shots/
+          if-no-files-found: warn
