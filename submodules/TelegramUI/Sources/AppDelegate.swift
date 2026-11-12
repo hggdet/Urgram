@@ -307,25 +307,35 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private var urlSessions: [URLSession] = []
     // URGRAM fork patch: when the app is re-signed with a certificate whose
     // provisioning profile carries different (generic) app groups, the default
-    // "group.<bundleId>" container does not exist and startup stalls; fall back
-    // to the first app group from the embedded provisioning profile.
+    // "group.<bundleId>" container does not exist and startup stalls; read the
+    // app groups from the embedded provisioning profile and use the first one
+    // this build is actually entitled to (its container URL resolves).
+    private func embeddedProfileAppGroups() -> [String] {
+        guard let profilePath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision"),
+              let profileData = try? Data(contentsOf: URL(fileURLWithPath: profilePath)),
+              let profileString = String(data: profileData, encoding: .isoLatin1),
+              let xmlStart = profileString.range(of: "<?xml"),
+              let xmlEnd = profileString.range(of: "</plist>") else {
+            return []
+        }
+        let xml = String(profileString[xmlStart.lowerBound..<xmlEnd.upperBound])
+        guard let plistData = xml.data(using: .utf8),
+              let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any],
+              let groups = entitlements["application-groups"] as? [String] else {
+            return []
+        }
+        return groups
+    }
+
     private func effectiveAppGroupName(baseAppBundleId: String) -> String {
         let preferred = "group.\(baseAppBundleId)"
         if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: preferred) != nil {
             return preferred
         }
-        if let profilePath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision"),
-           let profileData = try? Data(contentsOf: URL(fileURLWithPath: profilePath)),
-           let profileString = String(data: profileData, encoding: .isoLatin1),
-           let xmlStart = profileString.range(of: "<?xml"),
-           let xmlEnd = profileString.range(of: "</plist>") {
-            let xml = String(profileString[xmlStart.lowerBound..<xmlEnd.upperBound])
-            if let plistData = xml.data(using: .utf8),
-               let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any],
-               let entitlements = plist["Entitlements"] as? [String: Any],
-               let groups = entitlements["application-groups"] as? [String],
-               let first = groups.first {
-                return first
+        for group in self.embeddedProfileAppGroups() {
+            if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) != nil {
+                return group
             }
         }
         return preferred
@@ -717,7 +727,18 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             networkEngineFactory: RustNetworkEngineFactory()
         )
         
-        guard let appGroupUrl = maybeAppGroupUrl else {
+        // URGRAM fork patch: if no app-group container is available at all
+        // (re-signed build whose profile groups could not be resolved), fall
+        // back to a private directory inside the app sandbox so startup can
+        // proceed instead of stalling on a black screen.
+        let appGroupUrl: URL
+        if let maybeAppGroupUrl {
+            appGroupUrl = maybeAppGroupUrl
+        } else if let supportUrl = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true) {
+            let fallbackUrl = supportUrl.appendingPathComponent("UrgramSharedContainer", isDirectory: true)
+            try? FileManager.default.createDirectory(at: fallbackUrl, withIntermediateDirectories: true, attributes: nil)
+            appGroupUrl = fallbackUrl
+        } else {
             self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
             return true
         }

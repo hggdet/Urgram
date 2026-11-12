@@ -433,7 +433,7 @@ plist_fragment(
             <string>{telegram_bundle_id}</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>telegram</string>
+                <string>urgram</string>
             </array>
         </dict>
         <dict>
@@ -447,6 +447,7 @@ plist_fragment(
                 <string>tonsite</string>
                 <string>ton</string>
                 <string>tc</string>
+                <string>telegram</string>
             </array>
         </dict>
     </array>
@@ -644,7 +645,7 @@ plist_fragment(
     template =
     """
     <key>CFBundleDisplayName</key>
-    <string>Telegram</string>
+    <string>Urgram</string>
     """
 )
 
@@ -1699,11 +1700,11 @@ plist_fragment(
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Telegram</string>
+    <string>Urgram</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>Urgram</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
