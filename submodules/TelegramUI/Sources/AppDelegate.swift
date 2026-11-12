@@ -305,13 +305,39 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private let firebaseRequestVerificationSecretStream = Promise<[String: String]>([:])
     
     private var urlSessions: [URLSession] = []
+    // URGRAM fork patch: when the app is re-signed with a certificate whose
+    // provisioning profile carries different (generic) app groups, the default
+    // "group.<bundleId>" container does not exist and startup stalls; fall back
+    // to the first app group from the embedded provisioning profile.
+    private func effectiveAppGroupName(baseAppBundleId: String) -> String {
+        let preferred = "group.\(baseAppBundleId)"
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: preferred) != nil {
+            return preferred
+        }
+        if let profilePath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision"),
+           let profileData = try? Data(contentsOf: URL(fileURLWithPath: profilePath)),
+           let profileString = String(data: profileData, encoding: .isoLatin1),
+           let xmlStart = profileString.range(of: "<?xml"),
+           let xmlEnd = profileString.range(of: "</plist>") {
+            let xml = String(profileString[xmlStart.lowerBound..<xmlEnd.upperBound])
+            if let plistData = xml.data(using: .utf8),
+               let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any],
+               let entitlements = plist["Entitlements"] as? [String: Any],
+               let groups = entitlements["application-groups"] as? [String],
+               let first = groups.first {
+                return first
+            }
+        }
+        return preferred
+    }
+
     private func urlSession(identifier: String) -> URLSession {
         if let existingSession = self.urlSessions.first(where: { $0.configuration.identifier == identifier }) {
             return existingSession
         }
         
         let baseAppBundleId = Bundle.main.bundleIdentifier!
-        let appGroupName = "group.\(baseAppBundleId)"
+        let appGroupName = self.effectiveAppGroupName(baseAppBundleId: baseAppBundleId)
 
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
         configuration.sharedContainerIdentifier = appGroupName
@@ -564,7 +590,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown"
         
         let baseAppBundleId = Bundle.main.bundleIdentifier!
-        let appGroupName = "group.\(baseAppBundleId)"
+        let appGroupName = self.effectiveAppGroupName(baseAppBundleId: baseAppBundleId)
         try! PasscodeEnvironment.shared.configure(PasscodeConfiguration(appGroupIdentifier: appGroupName, processRole: .mainApp, biometricKeychainService: walletBiometricKeychainService), privateAccessGroup: {
             BuildConfig.keychainAccessGroup(baseAppBundleId: baseAppBundleId)
         })
