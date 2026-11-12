@@ -10,6 +10,12 @@ swift_library(
     ]),
     copts = [
         "-warnings-as-errors",
+        # URGRAM fork patch: Xcode 26.6's swiftc crashes (Exit 6, "Invalid SIL
+        # provided to OSSACompleteLifetime") compiling this module's large
+        # ShareScreen.init Signal pipeline — a toolchain bug, not a code error.
+        # The compiler itself suggests this flag; it only skips the SIL
+        # ownership verifier for this module. Revisit on a newer Xcode.
+        "-disable-sil-ownership-verifier",
     ],
     deps = [
         "//submodules/AsyncDisplayKit",
