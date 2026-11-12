@@ -1492,7 +1492,12 @@ extension StoreMessage {
                 }
             
                 if (flags & (1 << 26)) != 0 {
-                    storeFlags.insert(.CopyProtected)
+                    // URGRAM (item 2): with "Save Restricted Content" on, the
+                    // copy-protection flag is dropped at store time, which
+                    // re-enables save / forward / copy across the message UI.
+                    if !UrgramFeatureHooks.saveRestrictedBypass {
+                        storeFlags.insert(.CopyProtected)
+                    }
                 }
             
                 if (flags & (1 << 27)) != 0 {
@@ -1664,7 +1669,12 @@ extension StoreMessage {
                 }
             
                 if (flags & (1 << 26)) != 0 {
-                    storeFlags.insert(.CopyProtected)
+                    // URGRAM (item 2): with "Save Restricted Content" on, the
+                    // copy-protection flag is dropped at store time, which
+                    // re-enables save / forward / copy across the message UI.
+                    if !UrgramFeatureHooks.saveRestrictedBypass {
+                        storeFlags.insert(.CopyProtected)
+                    }
                 }
             
                 if (flags & (1 << 27)) != 0 {

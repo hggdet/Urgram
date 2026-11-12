@@ -175,6 +175,12 @@ private func requestActivity(postbox: Postbox, network: Network, accountPeerId: 
                 }
             }
             
+            // URGRAM (item 1, ghost mode): suppress all outgoing typing /
+            // recording activity indicators.
+            if UrgramFeatureHooks.ghostHideTyping {
+                return .complete()
+            }
+
             if let inputPeer = apiInputPeer(peer) {
                 var flags: Int32 = 0
                 let topMessageId = threadId.flatMap { Int32(clamping: $0) }

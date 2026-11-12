@@ -477,6 +477,11 @@ private class AdMessagesHistoryContextImpl {
     }
     
     func activate() {
+        // URGRAM (item 8): with "Hide Sponsored Messages" on, never fetch
+        // sponsored messages for this peer — the state simply stays empty.
+        if UrgramFeatureHooks.hideSponsored {
+            return
+        }
         if self.isActivated {
             return
         }

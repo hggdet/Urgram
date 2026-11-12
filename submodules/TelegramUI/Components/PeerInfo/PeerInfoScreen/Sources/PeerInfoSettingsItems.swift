@@ -24,6 +24,7 @@ enum SettingsSection: Int, CaseIterable {
     case apps
     case shortcuts
     case advanced
+    case urgram // URGRAM
     case payment
     case extra
     case support
@@ -279,7 +280,12 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 4, label: .text(languageName.isEmpty ? presentationData.strings.Localization_LanguageName : languageName), text: presentationData.strings.Settings_AppLanguage, icon: PresentationResourcesSettings.language, action: {
         interaction.openSettings(.language)
     }))
-    
+
+    // URGRAM: dedicated section holding every Urgram feature control.
+    items[.urgram]!.append(PeerInfoScreenDisclosureItem(id: 0, text: "Urgram", icon: PresentationResourcesSettings.appearance, action: {
+        interaction.openSettings(.urgram)
+    }))
+
     let premiumConfiguration = PremiumConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
     let isPremiumDisabled = premiumConfiguration.isPremiumDisabled
     if !isPremiumDisabled || context.isPremium {
@@ -474,7 +480,8 @@ func settingsEditingItems(data: PeerInfoScreenData?, state: PeerInfoState, conte
         }))
     }
     
-    if case let .user(user) = data.peer {
+    // URGRAM (item 30): optionally hide your own phone number row.
+    if case let .user(user) = data.peer, !UrgramSettingsStore.shared.current.hidePhoneInProfile {
         items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPhoneNumber, label: .text(user.phone.flatMap({ formatPhoneNumber(context: context, number: $0) }) ?? ""), text: presentationData.strings.Settings_PhoneNumber, icon: PresentationResourcesSettings.recentCalls, action: {
             interaction.openSettings(.phoneNumber)
         }))

@@ -43,6 +43,8 @@ private final class AccountPresenceManagerImpl {
     }
     
     private func updatePresence(_ isOnline: Bool) {
+        // URGRAM (item 1, ghost mode): always report offline to the server.
+        let isOnline = isOnline && !UrgramFeatureHooks.ghostHideOnline
         let request: Signal<Api.Bool, MTRpcError>
         if isOnline {
             let timer = SignalKitTimer(timeout: 30.0, repeat: false, completion: { [weak self] in

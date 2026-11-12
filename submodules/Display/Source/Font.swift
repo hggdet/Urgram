@@ -288,19 +288,70 @@ public struct Font {
         }
     }
     
+    // URGRAM (item 22): when set (from SharedAccountContext, driven by
+    // UrgramSettings), the plain factories below build fonts from this family
+    // instead of the system font. Falls back to the system font whenever the
+    // family has no matching face.
+    public static var urgramCustomFamilyName: String?
+
+    // URGRAM
+    private static func urgramFont(size: CGFloat, weight: UIFont.Weight) -> UIFont? {
+        guard let familyName = urgramCustomFamilyName else {
+            return nil
+        }
+        let faceNames = UIFont.fontNames(forFamilyName: familyName)
+        guard !faceNames.isEmpty else {
+            return nil
+        }
+        let keywords: [String]
+        if weight == .bold || weight == .heavy || weight == .black {
+            keywords = ["Bold", "Heavy", "Black", "Semibold", "Medium"]
+        } else if weight == .semibold {
+            keywords = ["Semibold", "DemiBold", "Bold", "Medium"]
+        } else if weight == .medium {
+            keywords = ["Medium", "Semibold", "Regular"]
+        } else if weight == .light || weight == .thin || weight == .ultraLight {
+            keywords = ["Light", "Thin", "Regular"]
+        } else {
+            keywords = ["Regular", "Book", "Medium"]
+        }
+        for keyword in keywords {
+            if let face = faceNames.first(where: { $0.localizedCaseInsensitiveContains(keyword) }) {
+                return UIFont(name: face, size: size)
+            }
+        }
+        return UIFont(name: faceNames[0], size: size)
+    }
+
     public static func regular(_ size: CGFloat) -> UIFont {
+        // URGRAM
+        if let font = urgramFont(size: size, weight: .regular) {
+            return font
+        }
         return UIFont.systemFont(ofSize: size)
     }
-    
+
     public static func medium(_ size: CGFloat) -> UIFont {
+        // URGRAM
+        if let font = urgramFont(size: size, weight: .medium) {
+            return font
+        }
         return UIFont.systemFont(ofSize: size, weight: UIFont.Weight.medium)
     }
-    
+
     public static func semibold(_ size: CGFloat) -> UIFont {
+        // URGRAM
+        if let font = urgramFont(size: size, weight: .semibold) {
+            return font
+        }
         return UIFont.systemFont(ofSize: size, weight: UIFont.Weight.semibold)
     }
-    
+
     public static func bold(_ size: CGFloat) -> UIFont {
+        // URGRAM
+        if let font = urgramFont(size: size, weight: .bold) {
+            return font
+        }
         if #available(iOS 8.2, *) {
             return UIFont.boldSystemFont(ofSize: size)
         } else {

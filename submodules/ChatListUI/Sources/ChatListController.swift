@@ -2262,21 +2262,27 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                     }
                     
                     self.rawStorySubscriptions = rawStorySubscriptions
+                    // URGRAM (item 20): hide the stories bar (or disable
+                    // stories entirely) by feeding the header an empty
+                    // subscription list.
+                    let urgramHideStories = UrgramSettingsStore.shared.current.hideStoriesBar || UrgramSettingsStore.shared.current.disableStories
                     var items: [EngineStorySubscriptions.Item] = []
-                    if self.shouldFixStorySubscriptionOrder {
+                    if !urgramHideStories, self.shouldFixStorySubscriptionOrder {
                         for peerId in self.fixedStorySubscriptionOrder {
                             if let item = rawStorySubscriptions.items.first(where: { $0.peer.id == peerId }) {
                                 items.append(item)
                             }
                         }
                     }
-                    for item in rawStorySubscriptions.items {
-                        if !items.contains(where: { $0.peer.id == item.peer.id }) {
-                            items.append(item)
+                    if !urgramHideStories {
+                        for item in rawStorySubscriptions.items {
+                            if !items.contains(where: { $0.peer.id == item.peer.id }) {
+                                items.append(item)
+                            }
                         }
                     }
                     self.orderedStorySubscriptions = EngineStorySubscriptions(
-                        accountItem: rawStorySubscriptions.accountItem,
+                        accountItem: urgramHideStories ? nil : rawStorySubscriptions.accountItem,
                         items: items,
                         hasMoreToken: rawStorySubscriptions.hasMoreToken
                     )

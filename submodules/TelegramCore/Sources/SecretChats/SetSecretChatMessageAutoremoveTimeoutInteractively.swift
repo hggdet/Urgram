@@ -26,6 +26,11 @@ func _internal_setSecretChatMessageAutoremoveTimeoutInteractively(transaction: T
 }
 
 func _internal_addSecretChatMessageScreenshot(account: Account, peerId: PeerId) -> Signal<Void, NoError> {
+    // URGRAM (item 24): don't notify the other side about screenshots taken
+    // in secret chats.
+    if UrgramFeatureHooks.secretChatScreenshotSilent {
+        return .complete()
+    }
     return account.postbox.transaction { transaction -> Void in
         if let _ = transaction.getPeer(peerId) as? TelegramSecretChat, let state = transaction.getPeerChatState(peerId) as? SecretChatState {
             switch state.embeddedState {

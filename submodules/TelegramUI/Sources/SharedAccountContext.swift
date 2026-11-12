@@ -311,6 +311,8 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         return self.immediateExperimentalUISettingsValue.with { $0 }
     }
     private var experimentalUISettingsDisposable: Disposable?
+    // URGRAM
+    private var urgramSettingsDisposable: Disposable?
     
     public var presentGlobalController: (ViewController, Any?) -> Void = { _, _ in }
     public var presentCrossfadeController: () -> Void = {}
@@ -564,12 +566,26 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         |> deliverOnMainQueue).start(next: { sharedData in
             if let settings = sharedData.entries[ApplicationSpecificSharedDataKeys.experimentalUISettings]?.get(ExperimentalUISettings.self) {
                 let _ = immediateExperimentalUISettingsValue.swap(settings)
-                
+
                 flatBuffers_checkedGet = settings.checkSerializedData
                 GlassBackgroundView.useCustomGlassImpl = settings.fakeGlass
                 ManagedAudioSessionImpl.respectsSystemRecordingInput = settings.respectSystemMicrophone
                 MediaEditorVideoExport.forceLegacyStoryWriter = settings.storyLegacyVideoWriter
                 MediaEditorVideoExport.forceLegacyChatWriter = settings.chatLegacyVideoWriter
+            }
+        })
+
+        // URGRAM: seed the Urgram settings store and mirror its flags into the
+        // TelegramCore hooks bridge whenever the shared data changes.
+        UrgramSettingsStore.shared.attach(accountManager: self.accountManager)
+        self.urgramSettingsDisposable = (self.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.urgramSettings])
+        |> deliverOnMainQueue).start(next: { sharedData in
+            if let settings = sharedData.entries[ApplicationSpecificSharedDataKeys.urgramSettings]?.get(UrgramSettings.self) {
+                UrgramSettingsStore.shared.applyExternal(settings)
+                // URGRAM (item 22): push the resolved font family into Display.
+                Font.urgramCustomFamilyName = UrgramFontManager.resolvedFamilyName(settings: settings)
+                // URGRAM (item 21): keep the media picker's HD default in sync.
+                UserDefaults.standard.set(settings.defaultHDPhotos, forKey: "TG_photoHighQuality_v0")
             }
         })
         

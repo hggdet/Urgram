@@ -227,15 +227,19 @@ extension PeerInfoScreenNode {
                 guard let strongSelf = self else {
                     return
                 }
-                var maximumAvailableAccounts: Int = 3
+                // URGRAM (item 7): no account-count cap — upstream limits
+                // adding accounts to 3 (4 with Premium) behind a paywall
+                // screen; Urgram removes the cap entirely.
+                var maximumAvailableAccounts: Int = 100
                 if accountAndPeer?.1.isPremium == true && !strongSelf.context.account.testingEnvironment {
-                    maximumAvailableAccounts = 4
+                    maximumAvailableAccounts = 100
                 }
                 var count: Int = 1
                 for (accountContext, peer, _) in accountsAndPeers {
                     if !accountContext.account.testingEnvironment {
                         if peer.isPremium {
-                            maximumAvailableAccounts = 4
+                            // URGRAM (item 7)
+                            maximumAvailableAccounts = 100
                         }
                         count += 1
                     }
@@ -281,6 +285,9 @@ extension PeerInfoScreenNode {
             self.interaction.editingOpenNameColorSetup()
         case .powerSaving:
             push(energySavingSettingsScreen(context: self.context))
+        // URGRAM
+        case .urgram:
+            push(urgramSettingsController(context: self.context))
         case .businessSetup:
             guard let controller = self.controller, !controller.presentAccountFrozenInfoIfNeeded() else {
                 return

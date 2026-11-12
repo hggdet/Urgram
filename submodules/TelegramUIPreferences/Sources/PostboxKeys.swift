@@ -67,6 +67,7 @@ private enum ApplicationSpecificSharedDataKeyValues: Int32 {
     case updateSettings = 21
     case chatSettings = 22
     case newsFeedSettings = 23
+    case urgramSettings = 24 // URGRAM
 }
 
 public struct ApplicationSpecificSharedDataKeys {
@@ -94,6 +95,8 @@ public struct ApplicationSpecificSharedDataKeys {
     public static let updateSettings: EngineDataBuffer = applicationSpecificPreferencesKey(ApplicationSpecificSharedDataKeyValues.updateSettings.rawValue)
     public static let chatSettings: EngineDataBuffer = applicationSpecificPreferencesKey(ApplicationSpecificSharedDataKeyValues.chatSettings.rawValue)
     public static let newsFeedSettings: EngineDataBuffer = applicationSpecificSharedDataKey(ApplicationSpecificSharedDataKeyValues.newsFeedSettings.rawValue)
+    // URGRAM
+    public static let urgramSettings: EngineDataBuffer = applicationSpecificSharedDataKey(ApplicationSpecificSharedDataKeyValues.urgramSettings.rawValue)
 }
 
 private enum ApplicationSpecificItemCacheCollectionIdValues: Int8 {

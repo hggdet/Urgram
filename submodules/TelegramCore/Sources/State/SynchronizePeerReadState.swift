@@ -252,6 +252,12 @@ private func validatePeerReadState(network: Network, postbox: Postbox, stateMana
 }
 
 private func pushPeerReadState(network: Network, postbox: Postbox, stateManager: AccountStateManager, peerId: PeerId, readState: PeerReadState) -> Signal<PeerReadState, PeerReadStateValidationError> {
+    // URGRAM (item 1, ghost mode): never tell the server what was read. The
+    // local read state has already advanced, so chats look read on this
+    // device while other devices keep showing them as unread.
+    if UrgramFeatureHooks.ghostHideRead {
+        return .single(readState)
+    }
     if peerId.namespace == Namespaces.Peer.SecretChat {
         // Decide whether a request is needed before looking the peer up: inputSecretChat goes
         // through loadedPeerWithId, which never emits when the peer row is missing and fails

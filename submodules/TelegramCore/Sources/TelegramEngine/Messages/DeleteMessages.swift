@@ -40,6 +40,12 @@ func _internal_deleteEphemeralReplacements(transaction: Transaction, anchorIds: 
 }
 
 public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil) {
+    // URGRAM (item 3): archive the text of messages about to be deleted
+    // (remote deletes, autoremove and history maintenance all pass through
+    // here) while "Keep Deleted Messages" is on.
+    if UrgramFeatureHooks.keepDeletedMessages {
+        urgramArchiveMessagesBeforeDeletion(transaction: transaction, ids: ids)
+    }
     var resourceIds: [MediaResourceId] = []
     if deleteMedia {
         for id in ids {

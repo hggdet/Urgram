@@ -110,6 +110,12 @@ func managedSynchronizeConsumeMessageContentOperations(postbox: Postbox, network
 }
 
 private func synchronizeConsumeMessageContents(transaction: Transaction, network: Network, stateManager: AccountStateManager, peerId: PeerId, operation: SynchronizeConsumeMessageContentsOperation) -> Signal<Void, NoError> {
+    // URGRAM (item 1, ghost mode): readMessageContents is the "listened /
+    // viewed" receipt for voice and video messages — suppress it too. The
+    // operation completes locally so consumed state stays consistent here.
+    if UrgramFeatureHooks.ghostHideRead {
+        return .complete()
+    }
     if peerId.namespace == Namespaces.Peer.CloudUser || peerId.namespace == Namespaces.Peer.CloudGroup {
         return network.request(Api.functions.messages.readMessageContents(id: operation.messageIds.map { $0.id }))
         |> map(Optional.init)

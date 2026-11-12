@@ -6631,7 +6631,11 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
                 } else if case .tap = gesture {
                     item.controllerInteraction.clickThroughMessage(self.view, location)
                 } else if case .doubleTap = gesture {
-                    if canAddMessageReactions(message: EngineMessage(item.message)) {
+                    // URGRAM (item 27): double-tap edits your own message
+                    // instead of sending the default quick reaction.
+                    if UrgramSettingsStore.shared.current.doubleTapEditOwnMessages, !item.message.flags.contains(.Incoming) {
+                        item.controllerInteraction.setupEditMessage(item.message.id, { _ in })
+                    } else if canAddMessageReactions(message: EngineMessage(item.message)) {
                         item.controllerInteraction.updateMessageReaction(item.message, .default, false, nil)
                     }
                 }
