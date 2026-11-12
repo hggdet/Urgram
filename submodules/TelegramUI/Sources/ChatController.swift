@@ -5639,6 +5639,9 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                 return
             }
             self.openEditMessageFactCheck(messageId: messageId)
+        }, setupEditMessage: { [weak self] messageId, completion in
+            // URGRAM (item 27): double-tap to edit forwards to the panel editor.
+            self?.interfaceInteraction?.setupEditMessage(messageId, completion)
         }, sendGift: { [weak self] peerId in
             guard let self else {
                 return

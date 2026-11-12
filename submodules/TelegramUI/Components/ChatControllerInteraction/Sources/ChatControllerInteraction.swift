@@ -216,6 +216,8 @@ public final class ChatControllerInteraction: ChatControllerInteractionProtocol 
     public let openPeerMention: (String, Promise<Bool>?) -> Void
     public let openMessageContextMenu: (EngineRawMessage, Bool, ASDisplayNode, CGRect, UIGestureRecognizer?, CGPoint?) -> Void
     public let updateMessageReaction: (EngineRawMessage, ChatControllerInteractionReaction, Bool, ContextExtractedContentContainingView?) -> Void
+    // URGRAM (item 27): opens the message editor from message nodes (double-tap to edit).
+    public let setupEditMessage: (EngineMessage.Id, @escaping (ContainedViewLayoutTransition) -> Void) -> Void
     public let openMessageReactionContextMenu: (EngineRawMessage, ContextExtractedContentContainingView, ContextGesture?, MessageReaction.Reaction) -> Void
     public let activateMessagePinch: (PinchSourceContainerNode) -> Void
     public let openMessageContextActions: (EngineRawMessage, ASDisplayNode, CGRect, ContextGesture?) -> Void
@@ -531,6 +533,8 @@ public final class ChatControllerInteraction: ChatControllerInteractionProtocol 
         displayTodoToggleUnavailable: @escaping (EngineMessage.Id) -> Void,
         canEditMessageRichText: @escaping (EngineRawMessage) -> Bool = { _ in false },
         toggleMessageRichTextCheckbox: @escaping (EngineMessage.Id, [Int], Bool) -> Void = { _, _, _ in },
+        // URGRAM (item 27): forwards to the chat panel's setupEditMessage; no-op in preview/other controllers.
+        setupEditMessage: @escaping (EngineMessage.Id, @escaping (ContainedViewLayoutTransition) -> Void) -> Void = { _, _ in },
         openStarsPurchase: @escaping (Int64?) -> Void,
         openRankInfo: @escaping (EnginePeer, ChatRankInfoScreenRole, String) -> Void,
         openSetPeerAvatar: @escaping () -> Void,
@@ -653,6 +657,7 @@ public final class ChatControllerInteraction: ChatControllerInteractionProtocol 
         
         self.requestMessageUpdate = requestMessageUpdate
         self.canEditMessageRichText = canEditMessageRichText
+        self.setupEditMessage = setupEditMessage
         self.toggleMessageRichTextCheckbox = toggleMessageRichTextCheckbox
         self.cancelInteractiveKeyboardGestures = cancelInteractiveKeyboardGestures
         self.dismissTextInput = dismissTextInput

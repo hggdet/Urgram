@@ -250,6 +250,12 @@ check. Per-item status below is exact: **implemented** / **partial** /
   reaction. Coverage: the fallback double-tap path (messages without a more
   specific bubble action); media-specific double-tap actions are unchanged.
   Editability (time limit) is enforced by the edit flow itself.
+  **Build 11 fix (2026-11-13):** `setupEditMessage` does not exist on
+  `ChatControllerInteraction` — it lives on `ChatPanelInterfaceInteraction`.
+  Added a `setupEditMessage` closure to `ChatControllerInteraction`
+  (default no-op, so preview/other controllers keep compiling) and wired
+  it in `ChatController` to `interfaceInteraction?.setupEditMessage(...)`.
+  The bubble-node call site is unchanged.
 - **28 Auto-delete — covered by upstream.** Per-chat autoremove timers and
   a global auto-delete (Privacy → Auto-Delete Messages) already exist in
   13.2. Delete-all-my-messages: see item 24.
