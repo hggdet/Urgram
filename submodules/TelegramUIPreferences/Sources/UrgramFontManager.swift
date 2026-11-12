@@ -60,7 +60,7 @@ public enum UrgramFontManager {
 
     // URGRAM: returns (postScriptName, familyName) for a font file URL, or nil.
     public static func fontNames(at url: URL) -> (postScriptName: String, familyName: String)? {
-        guard let provider = CGDataProvider(url as CFURL), let cgFont = CGFont(provider) else {
+        guard let provider = CGDataProvider(url: url as CFURL), let cgFont = CGFont(provider) else {
             return nil
         }
         let ctFont = CTFontCreateWithGraphicsFont(cgFont, 0.0, nil, nil)
