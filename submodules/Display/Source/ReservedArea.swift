@@ -160,9 +160,10 @@ var iPhoneDuoSystemReportIsSettled: Bool {
 /// The frames of the occlusion regions the system reports as active in `view` (iPhone Duo's status corner and its
 /// camera), in the view's coordinates. Empty before iOS 27.1.
 func activeOcclusionFrames(in view: UIView) -> [CGRect] {
-    if #available(iOS 27.1, *) {
-        return view.reservedRegions(kind: .occlusion).filter(\.isActive).map(\.frame)
-    }
+    // URGRAM fork patch: UIView.reservedRegions needs the iOS 27.1 SDK (Xcode 27);
+    // CI still runs Xcode 26.6 (SDK 26.5), where the symbol does not exist at all,
+    // so the reference cannot compile even inside #available. Fall back to the
+    // documented pre-27.1 behaviour (empty) until CI moves to Xcode 27.
     return []
 }
 

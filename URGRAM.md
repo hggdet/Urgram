@@ -29,3 +29,6 @@ unsigned/fake-signed and is meant to be re-signed with your own certificate.
   by Telegram Messenger LLP — GPL. This fork publishes its code in compliance
   with the licence, as required.
 - Urgram identity, icons and feature work: Abdulbasit Khudair (ابو العبد).
+
+## Fork patches (Urgram vs upstream Telegram-iOS 13.2)
+- **Display/reservedRegions (2026-11-12):** `UIView.reservedRegions` needs the iOS 27.1 SDK (Xcode 27); CI runners top out at Xcode 26.6 (SDK 26.5), so the two call sites in `submodules/Display/Source/ReservedArea.swift` (`activeOcclusionFrames`) and `WindowContent.swift` (`activeDivision`) could not compile even inside `#available`. Patched to return the documented pre-27.1 fallbacks (`[]` / `nil`) — iPhone Duo foldable-only paths, inert on all current devices. Revert when CI moves to Xcode 27.

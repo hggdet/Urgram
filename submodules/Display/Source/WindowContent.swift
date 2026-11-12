@@ -292,9 +292,9 @@ public final class WindowHostView {
     /// Multi-display devices only: the fold while the system reports it active, in `eventView`
     /// coordinates. Nil before iOS 27.1.
     fileprivate var activeDivision: CGRect? {
-        if #available(iOS 27.1, *) {
-            return self.eventView.reservedRegions(kind: .division).first(where: \.isActive)?.frame
-        }
+        // URGRAM fork patch: see activeOcclusionFrames in ReservedArea.swift —
+        // UIView.reservedRegions needs the iOS 27.1 SDK (Xcode 27); CI still runs
+        // Xcode 26.6 (SDK 26.5). Fall back to the documented pre-27.1 behaviour (nil).
         return nil
     }
     
