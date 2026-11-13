@@ -468,6 +468,11 @@ final class PeerInfoScreenData {
     
     let _isContact: Bool
     var forceIsContact: Bool = false
+    /// URGRAM (identity registry): the resolved banner + extended card
+    /// for this profile's user, filled in asynchronously by
+    /// PeerInfoScreenImpl's registry subscription (nil = no record, the
+    /// profile renders exactly as stock).
+    var urgramIdentity: UrgramIdentityPresentation?
 
     var isContact: Bool {
         if self.forceIsContact {

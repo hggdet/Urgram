@@ -1072,6 +1072,25 @@ func infoItems(
         }
     }
     
+    // URGRAM (identity registry): the extended ID card — long bio plus
+    // social link rows — under the standard info. The record was resolved
+    // in the background by PeerInfoScreenUrgramIdentity and arrives via
+    // data.urgramIdentity; no record means no items at all.
+    if let peer = data.peer, case let .user(user) = peer, let identity = data.urgramIdentity {
+        let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
+        if !identity.card.bio.isEmpty {
+            items[.peerInfo]!.append(PeerInfoScreenCommentItem(id: "urgram-identity-bio-\(user.id.toInt64())", text: identity.card.bio))
+        }
+        for (index, link) in identity.card.links.enumerated() {
+            let url = UrgramIdentityRegistry.linkURL(link)
+            items[.peerInfo]!.append(PeerInfoScreenDisclosureItem(id: "urgram-identity-link-\(user.id.toInt64())-\(index)", label: .text(link.value), text: UrgramIdentityRegistry.linkTitle(link.type, isArabic: isArabic), hasArrow: url != nil, action: {
+                if let url = url, let navigationController = interaction.getController()?.navigationController as? NavigationController {
+                    context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: url, forceExternal: false, presentationData: presentationData, navigationController: navigationController, dismissInput: {})
+                }
+            }))
+        }
+    }
+
     // URGRAM (build 20, Clean Edition): export this chat's recent history
     // to a text file, from its profile screen. Secret chats are excluded
     // by design (their contents must not leave the chat as a file).

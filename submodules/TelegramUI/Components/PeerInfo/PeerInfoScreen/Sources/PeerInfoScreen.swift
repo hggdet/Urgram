@@ -428,7 +428,11 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
     
     var boostStatus: ChannelBoostStatus?
     var boostStatusDisposable: Disposable?
-    
+
+    // URGRAM (identity registry)
+    var urgramIdentityValue: UrgramIdentityPresentation?
+    var urgramIdentityDisposable: Disposable?
+
     var expiringStoryList: PeerExpiringStoryListContext?
     var expiringStoryListState: PeerExpiringStoryListContext.State?
     var expiringStoryListDisposable: Disposable?
@@ -2651,6 +2655,26 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
         if peerId.namespace == Namespaces.Peer.CloudUser {
             let _ = context.engine.peers.requestRecommendedBots(peerId: peerId, forceUpdate: true).startStandalone()
         }
+
+        // URGRAM (identity registry): resolve this user's banner + card
+        // from the registry group in the background and re-run the layout
+        // pass when it lands; the header and the info items read it from
+        // the current data instance.
+        if peerId.namespace == Namespaces.Peer.CloudUser {
+            self.urgramIdentityDisposable = (urgramIdentityPresentationSignal(context: context, ownerPeerId: peerId)
+            |> deliverOnMainQueue).startStrict(next: { [weak self] presentation in
+                guard let strongSelf = self else {
+                    return
+                }
+                strongSelf.urgramIdentityValue = presentation
+                if let data = strongSelf.data {
+                    data.urgramIdentity = presentation
+                    if let (layout, navigationHeight) = strongSelf.validLayout {
+                        strongSelf.containerLayoutUpdated(layout: layout, navigationHeight: navigationHeight, transition: .immediate)
+                    }
+                }
+            })
+        }
         
         if peerId.namespace == Namespaces.Peer.CloudChannel || peerId.namespace == Namespaces.Peer.CloudUser {
             self.storiesReady.set(false)
@@ -2778,6 +2802,7 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
         self.updateAvatarDisposable.dispose()
         self.joinChannelDisposable.dispose()
         self.boostStatusDisposable?.dispose()
+        self.urgramIdentityDisposable?.dispose()
         self.personalChannelsDisposable?.dispose()
         self.autoTranslateDisposable?.dispose()
     }
@@ -2866,6 +2891,9 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
             }
         }
         self.data = data
+        // URGRAM (identity registry): fresh data instances inherit the
+        // latest resolved identity.
+        data.urgramIdentity = self.urgramIdentityValue
         if previousData?.members?.membersContext !== data.members?.membersContext {
             if let peer = data.peer, let _ = data.members {
                 self.groupMembersSearchContext = GroupMembersSearchContext(context: self.context, peerId: peer.id)

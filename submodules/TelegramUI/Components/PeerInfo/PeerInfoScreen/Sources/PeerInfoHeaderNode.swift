@@ -118,6 +118,11 @@ final class PeerInfoHeaderNode: ASDisplayNode {
     let avatarListNode: PeerInfoAvatarListNode
     
     let backgroundBannerView: UIView
+    /// URGRAM (identity registry): the profile banner image, drawn over
+    /// the stock cover area (below the avatar/title content) while the
+    /// resolved identity record carries one; hidden otherwise.
+    let urgramBannerNode: TransformImageNode
+    var urgramBannerKey: String?
     let backgroundCover = ComponentView<Empty>()
     let giftsCover = ComponentView<Empty>()
     var didSetupBackgroundCover = false
@@ -346,6 +351,10 @@ final class PeerInfoHeaderNode: ASDisplayNode {
         self.backgroundBannerView.clipsToBounds = true
         self.backgroundBannerView.isUserInteractionEnabled = false
         self.backgroundBannerView.layer.allowsGroupOpacity = true
+
+        self.urgramBannerNode = TransformImageNode()
+        self.urgramBannerNode.isUserInteractionEnabled = false
+        self.urgramBannerNode.isHidden = true
         
         self.buttonsContainerNode = SparseNode()
         self.buttonsContainerNode.clipsToBounds = true
@@ -392,6 +401,8 @@ final class PeerInfoHeaderNode: ASDisplayNode {
         self.subtitleNodeContainer.addSubnode(self.subtitleNode)
         self.subtitleNodeContainer.addSubnode(self.panelSubtitleNode)
         self.usernameNodeContainer.addSubnode(self.usernameNode)
+
+        self.addSubnode(self.urgramBannerNode)
 
         self.regularContentNode.addSubnode(self.avatarClippingNode)
         self.avatarClippingNode.addSubnode(self.avatarListNode)
@@ -2504,6 +2515,29 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             }
         }
         
+        // URGRAM (identity registry): the profile banner covers the
+        // stock cover area while the resolved identity carries one, and
+        // fades together with the stock background.
+        if let urgramIdentity = screenData?.urgramIdentity, let bannerSignal = urgramIdentity.bannerImageSignal, let bannerKey = urgramIdentity.bannerKey {
+            self.urgramBannerNode.isHidden = false
+            let urgramBannerSize = CGSize(width: width + bannerInset * 2.0, height: apparentBackgroundHeight + bannerInset)
+            let urgramBannerFrame = CGRect(origin: CGPoint(x: -bannerInset, y: -bannerInset), size: urgramBannerSize)
+            if additive {
+                transition.updateFrameAdditive(node: self.urgramBannerNode, frame: urgramBannerFrame)
+            } else {
+                transition.updateFrame(node: self.urgramBannerNode, frame: urgramBannerFrame)
+            }
+            navigationTransition.updateAlpha(node: self.urgramBannerNode, alpha: backgroundBannerAlpha)
+            if self.urgramBannerKey != bannerKey {
+                self.urgramBannerKey = bannerKey
+                self.urgramBannerNode.setSignal(bannerSignal, attemptSynchronously: false, dispatchOnDisplayLink: true)
+            }
+            self.urgramBannerNode.asyncLayout()(TransformImageArguments(corners: ImageCorners(), imageSize: urgramBannerSize, boundingSize: urgramBannerSize, intrinsicInsets: UIEdgeInsets(), emptyColor: nil))()
+        } else {
+            self.urgramBannerNode.isHidden = true
+            self.urgramBannerKey = nil
+        }
+
         if let profileGiftsContext, let peer {
             let giftsCoverSize = self.giftsCover.update(
                 transition: ComponentTransition(transition),
