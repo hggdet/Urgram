@@ -7432,6 +7432,25 @@ private final class ChatListLocationContext {
                 } else {
                     self.storyButton = nil
                 }
+
+                // URGRAM (Studio V2, "Main Interface"): the user can hide the
+                // main bar's Edit / Compose / Add-Story buttons from the
+                // Studio. This rebuild runs on every chat-list state update,
+                // so the flags take effect without a restart. The Done
+                // buttons used while editing or reordering tabs are never
+                // hidden — they are the only way out of those modes.
+                if !isReorderingTabs && !stateAndFilterId.state.editing {
+                    let urgramSettings = UrgramSettingsStore.shared.current
+                    if urgramSettings.homeHideEditButton {
+                        self.leftButton = nil
+                    }
+                    if urgramSettings.homeHideComposeButton {
+                        self.rightButton = nil
+                    }
+                    if urgramSettings.homeHideStoryButton {
+                        self.storyButton = nil
+                    }
+                }
             } else {
                 let parentController = self.parentController
                 self.rightButton = NavigationBarComponent.Button(id: "more",

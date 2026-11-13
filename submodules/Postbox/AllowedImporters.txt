@@ -47,6 +47,7 @@ submodules/PhotoResources/Sources/PhotoResources.swift
 submodules/PremiumUI/Sources/PremiumIntroScreen.swift
 submodules/SettingsUI/Sources/UrgramArchiveController.swift
 submodules/SettingsUI/Sources/UrgramBookmarksController.swift
+submodules/SettingsUI/Sources/UrgramStudioController.swift
 submodules/ShareController/Sources/ShareController.swift
 submodules/ShareController/Sources/ShareControllerNode.swift
 submodules/ShareItems/Sources/ShareItems.swift

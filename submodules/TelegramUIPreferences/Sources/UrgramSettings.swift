@@ -17,6 +17,12 @@ import SwiftSignalKit
 // Colors are ARGB UInt32 (same convention as PresentationThemeAccentColor
 // presets). `bubbleColors` empty means "derive outgoing bubble colors from
 // the accent color"; one entry is a solid fill; two entries are a gradient.
+// URGRAM (Studio V2): the design also carries the other verified
+// PresentationThemeSettings parameters — chat/list font sizes
+// (PresentationFontSize raw values; -1 means "follow the system size",
+// nil means the design does not touch font sizes), large emoji, bubble
+// corner merging and the serif message font. All new fields are optional
+// so build 20–23 design files keep decoding unchanged.
 public struct UrgramThemeDesign: Codable, Equatable {
     public var id: String
     public var name: String
@@ -27,6 +33,11 @@ public struct UrgramThemeDesign: Codable, Equatable {
     public var wallpaperColorA: UInt32
     public var wallpaperColorB: UInt32
     public var bubbleRadius: Int32
+    public var chatFontSize: Int32?
+    public var listFontSize: Int32?
+    public var largeEmoji: Bool?
+    public var mergeBubbleCorners: Bool?
+    public var serifMessageFont: Bool?
 
     public init(
         id: String,
@@ -36,7 +47,12 @@ public struct UrgramThemeDesign: Codable, Equatable {
         wallpaperMode: Int32,
         wallpaperColorA: UInt32,
         wallpaperColorB: UInt32,
-        bubbleRadius: Int32
+        bubbleRadius: Int32,
+        chatFontSize: Int32? = nil,
+        listFontSize: Int32? = nil,
+        largeEmoji: Bool? = nil,
+        mergeBubbleCorners: Bool? = nil,
+        serifMessageFont: Bool? = nil
     ) {
         self.id = id
         self.name = name
@@ -46,6 +62,11 @@ public struct UrgramThemeDesign: Codable, Equatable {
         self.wallpaperColorA = wallpaperColorA
         self.wallpaperColorB = wallpaperColorB
         self.bubbleRadius = bubbleRadius
+        self.chatFontSize = chatFontSize
+        self.listFontSize = listFontSize
+        self.largeEmoji = largeEmoji
+        self.mergeBubbleCorners = mergeBubbleCorners
+        self.serifMessageFont = serifMessageFont
     }
 
     public init(from decoder: Decoder) throws {
@@ -59,6 +80,11 @@ public struct UrgramThemeDesign: Codable, Equatable {
         self.wallpaperColorA = try container.decodeIfPresent(UInt32.self, forKey: "wallpaperColorA") ?? 0xff2aabee
         self.wallpaperColorB = try container.decodeIfPresent(UInt32.self, forKey: "wallpaperColorB") ?? 0xff2aabee
         self.bubbleRadius = try container.decodeIfPresent(Int32.self, forKey: "bubbleRadius") ?? 16
+        self.chatFontSize = try container.decodeIfPresent(Int32.self, forKey: "chatFontSize")
+        self.listFontSize = try container.decodeIfPresent(Int32.self, forKey: "listFontSize")
+        self.largeEmoji = try container.decodeIfPresent(Bool.self, forKey: "largeEmoji")
+        self.mergeBubbleCorners = try container.decodeIfPresent(Bool.self, forKey: "mergeBubbleCorners")
+        self.serifMessageFont = try container.decodeIfPresent(Bool.self, forKey: "serifMessageFont")
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -72,6 +98,11 @@ public struct UrgramThemeDesign: Codable, Equatable {
         try container.encode(self.wallpaperColorA, forKey: "wallpaperColorA")
         try container.encode(self.wallpaperColorB, forKey: "wallpaperColorB")
         try container.encode(self.bubbleRadius, forKey: "bubbleRadius")
+        try container.encodeIfPresent(self.chatFontSize, forKey: "chatFontSize")
+        try container.encodeIfPresent(self.listFontSize, forKey: "listFontSize")
+        try container.encodeIfPresent(self.largeEmoji, forKey: "largeEmoji")
+        try container.encodeIfPresent(self.mergeBubbleCorners, forKey: "mergeBubbleCorners")
+        try container.encodeIfPresent(self.serifMessageFont, forKey: "serifMessageFont")
     }
 }
 
@@ -123,6 +154,12 @@ public struct UrgramSettings: Codable, Equatable {
     // rule for inactive chats (0 = off, otherwise days of inactivity).
     public var replyTemplates: [String]
     public var autoArchiveInactiveDays: Int
+    // Studio V2 (main interface): hide the main chat-list navigation bar's
+    // Edit / Compose / Add-Story buttons. Gated at the button rebuild in
+    // ChatListLocationContext.updateChatList (ChatListController.swift).
+    public var homeHideEditButton: Bool
+    public var homeHideComposeButton: Bool
+    public var homeHideStoryButton: Bool
 
     public init(
         ghostHideRead: Bool,
@@ -159,7 +196,10 @@ public struct UrgramSettings: Codable, Equatable {
         studioDesigns: [UrgramThemeDesign],
         studioActiveDesignId: String?,
         replyTemplates: [String],
-        autoArchiveInactiveDays: Int
+        autoArchiveInactiveDays: Int,
+        homeHideEditButton: Bool,
+        homeHideComposeButton: Bool,
+        homeHideStoryButton: Bool
     ) {
         self.ghostHideRead = ghostHideRead
         self.ghostHideTyping = ghostHideTyping
@@ -196,6 +236,9 @@ public struct UrgramSettings: Codable, Equatable {
         self.studioActiveDesignId = studioActiveDesignId
         self.replyTemplates = replyTemplates
         self.autoArchiveInactiveDays = autoArchiveInactiveDays
+        self.homeHideEditButton = homeHideEditButton
+        self.homeHideComposeButton = homeHideComposeButton
+        self.homeHideStoryButton = homeHideStoryButton
     }
 
     public static var defaultSettings: UrgramSettings {
@@ -234,7 +277,10 @@ public struct UrgramSettings: Codable, Equatable {
             studioDesigns: [],
             studioActiveDesignId: nil,
             replyTemplates: [],
-            autoArchiveInactiveDays: 0
+            autoArchiveInactiveDays: 0,
+            homeHideEditButton: false,
+            homeHideComposeButton: false,
+            homeHideStoryButton: false
         )
     }
 
@@ -276,6 +322,9 @@ public struct UrgramSettings: Codable, Equatable {
         self.studioActiveDesignId = try container.decodeIfPresent(String.self, forKey: "studioActiveDesignId")
         self.replyTemplates = try container.decodeIfPresent([String].self, forKey: "replyTemplates") ?? []
         self.autoArchiveInactiveDays = try container.decodeIfPresent(Int.self, forKey: "autoArchiveInactiveDays") ?? 0
+        self.homeHideEditButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideEditButton") ?? false
+        self.homeHideComposeButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideComposeButton") ?? false
+        self.homeHideStoryButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideStoryButton") ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -316,6 +365,9 @@ public struct UrgramSettings: Codable, Equatable {
         try container.encodeIfPresent(self.studioActiveDesignId, forKey: "studioActiveDesignId")
         try container.encode(self.replyTemplates, forKey: "replyTemplates")
         try container.encode(self.autoArchiveInactiveDays, forKey: "autoArchiveInactiveDays")
+        try container.encode(self.homeHideEditButton, forKey: "homeHideEditButton")
+        try container.encode(self.homeHideComposeButton, forKey: "homeHideComposeButton")
+        try container.encode(self.homeHideStoryButton, forKey: "homeHideStoryButton")
     }
 }
 

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 import Display
 import AsyncDisplayKit
 import SwiftSignalKit
+import Postbox
 import TelegramCore
 import TelegramPresentationData
 import TelegramUIPreferences
@@ -30,6 +31,18 @@ import SliderComponent
 // Incoming bubble color, message text colors, chat-list / navigation-bar
 // backgrounds, "glass intensity" and chat-list density have NO such runtime
 // parameter and are deliberately NOT offered.
+// URGRAM (Studio V2): also exposed, through the same apply path —
+// PresentationThemeSettings.fontSize / listsFontSize (+ useSystemFont),
+// largeEmoji, PresentationChatBubbleSettings.mergeBubbleCorners and
+// serifMessageFont; one-tap preset designs; and a "Main Interface" section
+// whose switches write real preferences directly (stories-bar visibility via
+// UrgramSettings.hideStoriesBar, archived-row visibility via
+// ChatArchiveSettings.isHiddenByDefault, and the chat-list navigation
+// buttons gated in ChatListLocationContext.updateChatList). Glass
+// intensity and floating-bar corner shape were re-verified for Studio V2:
+// the glass effect is UIKit's fixed UIGlassEffect and the floating bars'
+// corner radii are hard-coded per call site — no settings-reachable value
+// exists, so neither is offered.
 
 func urgramStudioHexString(_ argb: UInt32) -> String {
     return String(format: "#%06X", argb & 0x00ffffff)
@@ -108,6 +121,36 @@ func urgramStudioApplyDesign(context: AccountContext, design: UrgramThemeDesign)
         }
         updated.chatBubbleSettings.mainRadius = design.bubbleRadius
         updated.chatBubbleSettings.auxiliaryRadius = design.bubbleRadius / 2
+        // URGRAM (Studio V2): the remaining verified PresentationThemeSettings
+        // parameters. Font sizes share the single useSystemFont switch in the
+        // runtime (PresentationData.resolveFontSize), so a design stores both
+        // sizes; -1 means "follow the system size". Fields left nil by older
+        // (build 20–23) designs do not touch the current values.
+        if let chatFontSize = design.chatFontSize {
+            if chatFontSize < 0 {
+                updated.useSystemFont = true
+            } else if let fontSize = PresentationFontSize(rawValue: chatFontSize) {
+                updated.fontSize = fontSize
+                updated.useSystemFont = false
+            }
+        }
+        if let listFontSize = design.listFontSize {
+            if listFontSize < 0 {
+                updated.useSystemFont = true
+            } else if let fontSize = PresentationFontSize(rawValue: listFontSize) {
+                updated.listsFontSize = fontSize
+                updated.useSystemFont = false
+            }
+        }
+        if let largeEmoji = design.largeEmoji {
+            updated.largeEmoji = largeEmoji
+        }
+        if let mergeBubbleCorners = design.mergeBubbleCorners {
+            updated.chatBubbleSettings.mergeBubbleCorners = mergeBubbleCorners
+        }
+        if let serifMessageFont = design.serifMessageFont {
+            updated.chatBubbleSettings.serifMessageFont = serifMessageFont
+        }
         return updated
     }).startStandalone()
 
@@ -140,12 +183,72 @@ func urgramStudioResetAppearance(context: AccountContext) {
         }
         updated.chatBubbleSettings.mainRadius = 16
         updated.chatBubbleSettings.auxiliaryRadius = 8
+        // URGRAM (Studio V2): restore the remaining parameters to the
+        // PresentationThemeSettings.defaultSettings values.
+        updated.useSystemFont = true
+        updated.fontSize = .regular
+        updated.listsFontSize = .regular
+        updated.largeEmoji = true
+        updated.chatBubbleSettings.mergeBubbleCorners = true
+        updated.chatBubbleSettings.serifMessageFont = false
         return updated
     }).startStandalone()
 
     UrgramSettingsStore.shared.update { settings in
         settings.studioActiveDesignId = nil
     }
+}
+
+// URGRAM (Studio V2): ready-made designs, applied in one tap through the
+// same apply path as saved designs. Values are ordinary UrgramThemeDesign
+// values (ARGB colors; wallpaper mode 1 = solid, 2 = gradient).
+private struct UrgramStudioPreset {
+    let design: UrgramThemeDesign
+    let en: String
+    let ar: String
+}
+
+private let urgramStudioPresets: [UrgramStudioPreset] = [
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-ocean", name: "Ocean", accentColor: 0xff0077b6, bubbleColors: [0xff00b4d8, 0xff0077b6], wallpaperMode: 2, wallpaperColorA: 0xff03045e, wallpaperColorB: 0xff0077b6, bubbleRadius: 18), en: "Ocean", ar: "المحيط"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-sunset", name: "Sunset", accentColor: 0xffff7b54, bubbleColors: [0xffffb26b, 0xffff7b54], wallpaperMode: 2, wallpaperColorA: 0xff2d4059, wallpaperColorB: 0xffff7b54, bubbleRadius: 16), en: "Sunset", ar: "الغروب"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-forest", name: "Forest", accentColor: 0xff2e933c, bubbleColors: [0xff6bcb77, 0xff2e933c], wallpaperMode: 2, wallpaperColorA: 0xff0b3d2e, wallpaperColorB: 0xff2e933c, bubbleRadius: 14), en: "Forest", ar: "الغابة"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-rose", name: "Rose", accentColor: 0xffe75480, bubbleColors: [0xffff9fb2, 0xffe75480], wallpaperMode: 2, wallpaperColorA: 0xff3a1c40, wallpaperColorB: 0xffe75480, bubbleRadius: 20), en: "Rose", ar: "الورد"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-midnight", name: "Midnight", accentColor: 0xff5e5ce6, bubbleColors: [0xff4a4a8a, 0xff2c2c54], wallpaperMode: 2, wallpaperColorA: 0xff0f0f1e, wallpaperColorB: 0xff23233a, bubbleRadius: 12, mergeBubbleCorners: true), en: "Midnight", ar: "منتصف الليل"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-sand", name: "Sand", accentColor: 0xffb08968, bubbleColors: [0xffddbea9, 0xffb08968], wallpaperMode: 1, wallpaperColorA: 0xffede0d4, wallpaperColorB: 0xffede0d4, bubbleRadius: 16), en: "Sand", ar: "الرمال")
+]
+
+// URGRAM (Studio V2): display name for a stored font-size raw value
+// (-1 = follow the system size, otherwise a PresentationFontSize raw value).
+func urgramStudioFontSizeName(_ rawValue: Int32, isArabic: Bool) -> String {
+    switch rawValue {
+    case -1:
+        return isArabic ? "حجم النظام" : "System Size"
+    case 0:
+        return isArabic ? "صغير جدًا" : "Extra Small"
+    case 1:
+        return isArabic ? "صغير" : "Small"
+    case 2:
+        return isArabic ? "عادي" : "Regular"
+    case 6:
+        return isArabic ? "متوسط" : "Medium"
+    case 3:
+        return isArabic ? "كبير" : "Large"
+    case 4:
+        return isArabic ? "كبير جدًا" : "Extra Large"
+    case 5:
+        return isArabic ? "الأكبر" : "Largest"
+    default:
+        return isArabic ? "عادي" : "Regular"
+    }
+}
+
+// URGRAM (Studio V2): tap-to-cycle order for the font-size rows.
+func urgramStudioNextFontSizeRaw(_ rawValue: Int32) -> Int32 {
+    let order: [Int32] = [-1, 0, 1, 2, 6, 3, 4, 5]
+    if let index = order.firstIndex(of: rawValue), index + 1 < order.count {
+        return order[index + 1]
+    }
+    return order[0]
 }
 
 // URGRAM: a titled continuous slider row, adapted from
@@ -607,8 +710,13 @@ private final class UrgramStudioControllerArguments {
     let resetAppearance: () -> Void
     let designAction: (UrgramThemeDesign) -> Void
     let importDesign: () -> Void
+    // URGRAM (Studio V2)
+    let applyPreset: (UrgramThemeDesign) -> Void
+    let cycleFontSize: (Bool) -> Void
+    let updateHomeFlag: (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void
+    let setArchiveHidden: (Bool) -> Void
 
-    init(context: AccountContext, updateDraft: @escaping ((inout UrgramThemeDesign) -> Void) -> Void, openColorEditor: @escaping (UrgramStudioColorTarget) -> Void, applyDraft: @escaping () -> Void, saveDraft: @escaping () -> Void, resetAppearance: @escaping () -> Void, designAction: @escaping (UrgramThemeDesign) -> Void, importDesign: @escaping () -> Void) {
+    init(context: AccountContext, updateDraft: @escaping ((inout UrgramThemeDesign) -> Void) -> Void, openColorEditor: @escaping (UrgramStudioColorTarget) -> Void, applyDraft: @escaping () -> Void, saveDraft: @escaping () -> Void, resetAppearance: @escaping () -> Void, designAction: @escaping (UrgramThemeDesign) -> Void, importDesign: @escaping () -> Void, applyPreset: @escaping (UrgramThemeDesign) -> Void, cycleFontSize: @escaping (Bool) -> Void, updateHomeFlag: @escaping (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void, setArchiveHidden: @escaping (Bool) -> Void) {
         self.context = context
         self.updateDraft = updateDraft
         self.openColorEditor = openColorEditor
@@ -617,13 +725,22 @@ private final class UrgramStudioControllerArguments {
         self.resetAppearance = resetAppearance
         self.designAction = designAction
         self.importDesign = importDesign
+        self.applyPreset = applyPreset
+        self.cycleFontSize = cycleFontSize
+        self.updateHomeFlag = updateHomeFlag
+        self.setArchiveHidden = setArchiveHidden
     }
 }
 
 private enum UrgramStudioSection: Int32 {
     case preview
-    case colors
+    case presets
+    case interface
+    case bubbles
+    case texts
+    case background
     case actions
+    case home
     case designs
 }
 
@@ -633,22 +750,45 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
     case chatListPreview(PresentationTheme, String, String)
     case previewFooter
 
-    case colorsHeader
+    case presetsHeader
+    case preset(UrgramThemeDesign, String, Int)
+
+    case interfaceHeader
     case accent(UInt32)
+    case interfaceFooter
+
+    case bubblesHeader
     case bubbleDerived(Bool)
     case bubbleColor1(UInt32)
     case bubbleGradient(Bool)
     case bubbleColor2(UInt32)
+    case radius(Int32)
+    case mergeCorners(Bool)
+
+    case textsHeader
+    case chatFontSize(Int32)
+    case listFontSize(Int32)
+    case largeEmoji(Bool)
+    case serifFont(Bool)
+
+    case backgroundHeader
     case wallpaperDefault(Bool)
     case wallpaperSolid(Bool)
     case wallpaperGradient(Bool)
     case wallpaperColorA(UInt32, Int32)
     case wallpaperColorB(UInt32)
-    case radius(Int32)
 
     case applyAction
     case saveAction
     case resetAction
+
+    case homeHeader
+    case homeHideStories(Bool)
+    case homeArchiveHidden(Bool)
+    case homeHideEdit(Bool)
+    case homeHideCompose(Bool)
+    case homeHideStory(Bool)
+    case homeFooter
 
     case designsHeader
     case importAction
@@ -659,10 +799,20 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
         switch self {
         case .previewHeader, .chatPreview, .chatListPreview, .previewFooter:
             return UrgramStudioSection.preview.rawValue
-        case .colorsHeader, .accent, .bubbleDerived, .bubbleColor1, .bubbleGradient, .bubbleColor2, .wallpaperDefault, .wallpaperSolid, .wallpaperGradient, .wallpaperColorA, .wallpaperColorB, .radius:
-            return UrgramStudioSection.colors.rawValue
+        case .presetsHeader, .preset:
+            return UrgramStudioSection.presets.rawValue
+        case .interfaceHeader, .accent, .interfaceFooter:
+            return UrgramStudioSection.interface.rawValue
+        case .bubblesHeader, .bubbleDerived, .bubbleColor1, .bubbleGradient, .bubbleColor2, .radius, .mergeCorners:
+            return UrgramStudioSection.bubbles.rawValue
+        case .textsHeader, .chatFontSize, .listFontSize, .largeEmoji, .serifFont:
+            return UrgramStudioSection.texts.rawValue
+        case .backgroundHeader, .wallpaperDefault, .wallpaperSolid, .wallpaperGradient, .wallpaperColorA, .wallpaperColorB:
+            return UrgramStudioSection.background.rawValue
         case .applyAction, .saveAction, .resetAction:
             return UrgramStudioSection.actions.rawValue
+        case .homeHeader, .homeHideStories, .homeArchiveHidden, .homeHideEdit, .homeHideCompose, .homeHideStory, .homeFooter:
+            return UrgramStudioSection.home.rawValue
         case .designsHeader, .importAction, .designsEmptyFooter, .design:
             return UrgramStudioSection.designs.rawValue
         }
@@ -674,24 +824,43 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
         case .chatPreview: return 1
         case .chatListPreview: return 2
         case .previewFooter: return 3
-        case .colorsHeader: return 10
-        case .accent: return 11
-        case .bubbleDerived: return 12
-        case .bubbleColor1: return 13
-        case .bubbleGradient: return 14
-        case .bubbleColor2: return 15
-        case .wallpaperDefault: return 16
-        case .wallpaperSolid: return 17
-        case .wallpaperGradient: return 18
-        case .wallpaperColorA: return 19
-        case .wallpaperColorB: return 20
-        case .radius: return 21
-        case .applyAction: return 30
-        case .saveAction: return 31
-        case .resetAction: return 32
-        case .designsHeader: return 40
-        case .importAction: return 41
-        case .designsEmptyFooter: return 42
+        case .presetsHeader: return 10
+        case let .preset(_, _, index):
+            return 100 + Int32(index)
+        case .interfaceHeader: return 20
+        case .accent: return 21
+        case .interfaceFooter: return 22
+        case .bubblesHeader: return 30
+        case .bubbleDerived: return 31
+        case .bubbleColor1: return 32
+        case .bubbleGradient: return 33
+        case .bubbleColor2: return 34
+        case .radius: return 35
+        case .mergeCorners: return 36
+        case .textsHeader: return 40
+        case .chatFontSize: return 41
+        case .listFontSize: return 42
+        case .largeEmoji: return 43
+        case .serifFont: return 44
+        case .backgroundHeader: return 50
+        case .wallpaperDefault: return 51
+        case .wallpaperSolid: return 52
+        case .wallpaperGradient: return 53
+        case .wallpaperColorA: return 54
+        case .wallpaperColorB: return 55
+        case .applyAction: return 60
+        case .saveAction: return 61
+        case .resetAction: return 62
+        case .homeHeader: return 70
+        case .homeHideStories: return 71
+        case .homeArchiveHidden: return 72
+        case .homeHideEdit: return 73
+        case .homeHideCompose: return 74
+        case .homeHideStory: return 75
+        case .homeFooter: return 76
+        case .designsHeader: return 80
+        case .importAction: return 81
+        case .designsEmptyFooter: return 82
         case let .design(_, _, index):
             return 1000 + Int32(index)
         }
@@ -714,10 +883,18 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             if case let .chatListPreview(rhsTheme, rhsTitle, rhsMessage) = rhs, lhsTheme === rhsTheme, lhsTitle == rhsTitle, lhsMessage == rhsMessage { return true } else { return false }
         case .previewFooter:
             if case .previewFooter = rhs { return true } else { return false }
-        case .colorsHeader:
-            if case .colorsHeader = rhs { return true } else { return false }
+        case .presetsHeader:
+            if case .presetsHeader = rhs { return true } else { return false }
+        case let .preset(lhsDesign, lhsName, lhsIndex):
+            if case let .preset(rhsDesign, rhsName, rhsIndex) = rhs, lhsDesign == rhsDesign, lhsName == rhsName, lhsIndex == rhsIndex { return true } else { return false }
+        case .interfaceHeader:
+            if case .interfaceHeader = rhs { return true } else { return false }
         case let .accent(lhsValue):
             if case let .accent(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case .interfaceFooter:
+            if case .interfaceFooter = rhs { return true } else { return false }
+        case .bubblesHeader:
+            if case .bubblesHeader = rhs { return true } else { return false }
         case let .bubbleDerived(lhsValue):
             if case let .bubbleDerived(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
         case let .bubbleColor1(lhsValue):
@@ -726,6 +903,22 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             if case let .bubbleGradient(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
         case let .bubbleColor2(lhsValue):
             if case let .bubbleColor2(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .radius(lhsValue):
+            if case let .radius(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .mergeCorners(lhsValue):
+            if case let .mergeCorners(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case .textsHeader:
+            if case .textsHeader = rhs { return true } else { return false }
+        case let .chatFontSize(lhsValue):
+            if case let .chatFontSize(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .listFontSize(lhsValue):
+            if case let .listFontSize(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .largeEmoji(lhsValue):
+            if case let .largeEmoji(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .serifFont(lhsValue):
+            if case let .serifFont(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case .backgroundHeader:
+            if case .backgroundHeader = rhs { return true } else { return false }
         case let .wallpaperDefault(lhsValue):
             if case let .wallpaperDefault(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
         case let .wallpaperSolid(lhsValue):
@@ -736,14 +929,26 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             if case let .wallpaperColorA(rhsValue, rhsMode) = rhs, lhsValue == rhsValue, lhsMode == rhsMode { return true } else { return false }
         case let .wallpaperColorB(lhsValue):
             if case let .wallpaperColorB(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
-        case let .radius(lhsValue):
-            if case let .radius(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
         case .applyAction:
             if case .applyAction = rhs { return true } else { return false }
         case .saveAction:
             if case .saveAction = rhs { return true } else { return false }
         case .resetAction:
             if case .resetAction = rhs { return true } else { return false }
+        case .homeHeader:
+            if case .homeHeader = rhs { return true } else { return false }
+        case let .homeHideStories(lhsValue):
+            if case let .homeHideStories(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .homeArchiveHidden(lhsValue):
+            if case let .homeArchiveHidden(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .homeHideEdit(lhsValue):
+            if case let .homeHideEdit(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .homeHideCompose(lhsValue):
+            if case let .homeHideCompose(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .homeHideStory(lhsValue):
+            if case let .homeHideStory(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case .homeFooter:
+            if case .homeFooter = rhs { return true } else { return false }
         case .designsHeader:
             if case .designsHeader = rhs { return true } else { return false }
         case .importAction:
@@ -767,12 +972,22 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             return UrgramStudioChatListPreviewItem(systemStyle: .glass, theme: theme, titleText: title, messageText: message, sectionId: self.section)
         case .previewFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "The preview is built on your current theme. Applying a design tints that theme — you can switch the base theme in Telegram's Appearance settings at any time.", "تُبنى المعاينة على سِمتك الحالية. تطبيق التصميم يلوّن تلك السمة — يمكنك تغيير السمة الأساسية من إعدادات المظهر في تيليغرام في أي وقت.")), sectionId: self.section)
-        case .colorsHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Colors and Bubbles", "الألوان والفقاعات"), sectionId: self.section)
+        case .presetsHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Ready Designs", "تصاميم جاهزة"), sectionId: self.section)
+        case let .preset(design, name, _):
+            return ItemListPeerActionItem(presentationData: presentationData, systemStyle: .glass, icon: urgramStudioSwatchImage(design.accentColor), title: name, sectionId: self.section, height: .generic, color: .accent, editing: false, action: {
+                arguments.applyPreset(design)
+            })
+        case .interfaceHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Interface Colors", "ألوان الواجهة"), sectionId: self.section)
         case let .accent(value):
             return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Accent Color", "لون التمييز"), label: urgramStudioHexString(value), sectionId: self.section, style: .blocks, action: {
                 arguments.openColorEditor(.accent)
             })
+        case .interfaceFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "The accent color drives the tab bar selection, navigation buttons, search, unread badges and checkmarks across the app.", "لون التمييز يقود لون تحديد شريط التبويبات وأزرار التنقّل والبحث وشارات غير المقروء وعلامات القراءة في كل التطبيق.")), sectionId: self.section)
+        case .bubblesHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Bubbles", "الفقاعات"), sectionId: self.section)
         case let .bubbleDerived(checked):
             return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Bubbles from Accent Color", "الفقاعات من لون التمييز"), style: .left, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
                 arguments.updateDraft { parameters in
@@ -801,6 +1016,8 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Outgoing Bubble Color 2", "لون فقاعة الرسائل الصادرة الثاني"), label: urgramStudioHexString(value), sectionId: self.section, style: .blocks, action: {
                 arguments.openColorEditor(.bubble2)
             })
+        case .backgroundHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Background", "الخلفية"), sectionId: self.section)
         case let .wallpaperDefault(checked):
             return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Chat Background: Theme Default", "خلفية المحادثة: افتراضي السمة"), style: .left, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
                 arguments.updateDraft { $0.wallpaperMode = 0 }
@@ -827,6 +1044,28 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             return BubbleSettingsRadiusItem(theme: presentationData.theme, value: snappedValue, enabled: true, disableLeadingInset: false, displayIcons: true, disableDecorations: false, force: false, sectionId: self.section, updated: { newValue in
                 arguments.updateDraft { $0.bubbleRadius = Int32(newValue) }
             })
+        case let .mergeCorners(checked):
+            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Merge Bubble Corners", "دمج زوايا الفقاعات المتتالية"), style: .left, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
+                arguments.updateDraft { $0.mergeBubbleCorners = !(checked) }
+            })
+        case .textsHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Text & Links", "النصوص والروابط"), sectionId: self.section)
+        case let .chatFontSize(rawValue):
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Chat Text Size", "حجم نص المحادثات"), label: urgramStudioFontSizeName(rawValue, isArabic: isArabic), sectionId: self.section, style: .blocks, action: {
+                arguments.cycleFontSize(true)
+            })
+        case let .listFontSize(rawValue):
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "List Text Size", "حجم نص القوائم"), label: urgramStudioFontSizeName(rawValue, isArabic: isArabic), sectionId: self.section, style: .blocks, action: {
+                arguments.cycleFontSize(false)
+            })
+        case let .largeEmoji(checked):
+            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Large Emoji", "إيموجي كبيرة"), style: .left, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
+                arguments.updateDraft { $0.largeEmoji = !(checked) }
+            })
+        case let .serifFont(checked):
+            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Serif Message Font", "خط رسائل مزخرف (Serif)"), style: .left, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
+                arguments.updateDraft { $0.serifMessageFont = !(checked) }
+            })
         case .applyAction:
             return ItemListActionItem(presentationData: presentationData, title: urgramText(presentationData, "Apply Design", "تطبيق التصميم"), kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.applyDraft()
@@ -839,6 +1078,30 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             return ItemListActionItem(presentationData: presentationData, title: urgramText(presentationData, "Reset Appearance", "إعادة تعيين المظهر"), kind: .destructive, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.resetAppearance()
             })
+        case .homeHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Main Interface", "الواجهة الرئيسية"), sectionId: self.section)
+        case let .homeHideStories(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Hide Stories Bar", "إخفاء شريط القصص"), value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.updateHomeFlag(\.hideStoriesBar, value)
+            })
+        case let .homeArchiveHidden(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Hide Archived Chats Row", "إخفاء صف المحادثات المؤرشفة"), value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.setArchiveHidden(value)
+            })
+        case let .homeHideEdit(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Hide Edit Button", "إخفاء زر التحرير"), value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.updateHomeFlag(\.homeHideEditButton, value)
+            })
+        case let .homeHideCompose(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Hide New Message Button", "إخفاء زر رسالة جديدة"), value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.updateHomeFlag(\.homeHideComposeButton, value)
+            })
+        case let .homeHideStory(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Hide Add Story Button", "إخفاء زر إضافة قصة"), value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.updateHomeFlag(\.homeHideStoryButton, value)
+            })
+        case .homeFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "These switches apply immediately — they are interface preferences, not part of saved designs.", "هذه المفاتيح تُطبَّق فورًا — هي تفضيلات واجهة وليست جزءًا من التصاميم المحفوظة.")), sectionId: self.section)
         case .designsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "My Designs", "تصاميمي"), sectionId: self.section)
         case .importAction:
@@ -856,27 +1119,45 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
     }
 }
 
-private func urgramStudioControllerEntries(presentationData: PresentationData, settings: UrgramSettings, draft: UrgramStudioDraft) -> [UrgramStudioControllerEntry] {
+private func urgramStudioControllerEntries(presentationData: PresentationData, settings: UrgramSettings, draft: UrgramStudioDraft, themeSettings: PresentationThemeSettings, archiveHidden: Bool) -> [UrgramStudioControllerEntry] {
     let parameters = draft.parameters
     let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
 
     let draftWallpaper = urgramStudioWallpaper(for: parameters)
     let previewTheme = customizePresentationTheme(presentationData.theme, editing: false, accentColor: UIColor(argb: parameters.accentColor), outgoingAccentColor: nil, backgroundColors: [], bubbleColors: parameters.bubbleColors.map { $0 & 0x00ffffff }, animateBubbleColors: nil, wallpaper: draftWallpaper, baseColor: .custom)
-    let previewCorners = PresentationChatBubbleCorners(mainRadius: CGFloat(parameters.bubbleRadius), auxiliaryRadius: CGFloat(parameters.bubbleRadius / 2), mergeBubbleCorners: presentationData.chatBubbleCorners.mergeBubbleCorners, hasTails: presentationData.chatBubbleCorners.hasTails, bubbleMode: presentationData.chatBubbleCorners.bubbleMode, serifMessageText: presentationData.chatBubbleCorners.serifMessageText)
+    // URGRAM (Studio V2): the preview reflects the draft's own values for the
+    // new parameters, falling back to the live presentation data.
+    let previewCorners = PresentationChatBubbleCorners(mainRadius: CGFloat(parameters.bubbleRadius), auxiliaryRadius: CGFloat(parameters.bubbleRadius / 2), mergeBubbleCorners: parameters.mergeBubbleCorners ?? presentationData.chatBubbleCorners.mergeBubbleCorners, hasTails: presentationData.chatBubbleCorners.hasTails, bubbleMode: presentationData.chatBubbleCorners.bubbleMode, serifMessageText: parameters.serifMessageFont ?? presentationData.chatBubbleCorners.serifMessageText)
     let previewWallpaper = draftWallpaper ?? presentationData.chatWallpaper
+    let previewFontSize: PresentationFontSize
+    if let rawChatFontSize = parameters.chatFontSize, rawChatFontSize >= 0, let fontSize = PresentationFontSize(rawValue: rawChatFontSize) {
+        previewFontSize = fontSize
+    } else {
+        previewFontSize = presentationData.chatFontSize
+    }
+    let effectiveChatFontRaw: Int32 = parameters.chatFontSize ?? (themeSettings.useSystemFont ? -1 : themeSettings.fontSize.rawValue)
+    let effectiveListFontRaw: Int32 = parameters.listFontSize ?? (themeSettings.useSystemFont ? -1 : themeSettings.listsFontSize.rawValue)
 
     var entries: [UrgramStudioControllerEntry] = []
 
     entries.append(.previewHeader)
-    entries.append(.chatPreview(previewTheme, previewWallpaper, previewCorners, presentationData.chatFontSize, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, [
+    entries.append(.chatPreview(previewTheme, previewWallpaper, previewCorners, previewFontSize, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, [
         ChatPreviewMessageItem(outgoing: false, reply: (presentationData.strings.Appearance_PreviewReplyAuthor, presentationData.strings.Appearance_PreviewReplyText), text: presentationData.strings.Appearance_PreviewIncomingText, nameColor: .preset(.blue), backgroundEmojiId: nil),
         ChatPreviewMessageItem(outgoing: true, reply: nil, text: presentationData.strings.Appearance_PreviewOutgoingText, nameColor: .preset(.blue), backgroundEmojiId: nil)
     ]))
     entries.append(.chatListPreview(previewTheme, isArabic ? "أورغرام" : "Urgram", isArabic ? "جرّب تصميمك الجديد 🎨" : "Try your new design 🎨"))
     entries.append(.previewFooter)
 
-    entries.append(.colorsHeader)
+    entries.append(.presetsHeader)
+    for (index, preset) in urgramStudioPresets.enumerated() {
+        entries.append(.preset(preset.design, isArabic ? preset.ar : preset.en, index))
+    }
+
+    entries.append(.interfaceHeader)
     entries.append(.accent(parameters.accentColor))
+    entries.append(.interfaceFooter)
+
+    entries.append(.bubblesHeader)
     entries.append(.bubbleDerived(parameters.bubbleColors.isEmpty))
     if !parameters.bubbleColors.isEmpty {
         entries.append(.bubbleColor1(parameters.bubbleColors[0]))
@@ -885,6 +1166,16 @@ private func urgramStudioControllerEntries(presentationData: PresentationData, s
             entries.append(.bubbleColor2(parameters.bubbleColors[1]))
         }
     }
+    entries.append(.radius(parameters.bubbleRadius))
+    entries.append(.mergeCorners(parameters.mergeBubbleCorners ?? themeSettings.chatBubbleSettings.mergeBubbleCorners))
+
+    entries.append(.textsHeader)
+    entries.append(.chatFontSize(effectiveChatFontRaw))
+    entries.append(.listFontSize(effectiveListFontRaw))
+    entries.append(.largeEmoji(parameters.largeEmoji ?? themeSettings.largeEmoji))
+    entries.append(.serifFont(parameters.serifMessageFont ?? themeSettings.chatBubbleSettings.serifMessageFont))
+
+    entries.append(.backgroundHeader)
     entries.append(.wallpaperDefault(parameters.wallpaperMode == 0))
     entries.append(.wallpaperSolid(parameters.wallpaperMode == 1))
     entries.append(.wallpaperGradient(parameters.wallpaperMode == 2))
@@ -894,11 +1185,18 @@ private func urgramStudioControllerEntries(presentationData: PresentationData, s
         entries.append(.wallpaperColorA(parameters.wallpaperColorA, parameters.wallpaperMode))
         entries.append(.wallpaperColorB(parameters.wallpaperColorB))
     }
-    entries.append(.radius(parameters.bubbleRadius))
 
     entries.append(.applyAction)
     entries.append(.saveAction)
     entries.append(.resetAction)
+
+    entries.append(.homeHeader)
+    entries.append(.homeHideStories(settings.hideStoriesBar))
+    entries.append(.homeArchiveHidden(archiveHidden))
+    entries.append(.homeHideEdit(settings.homeHideEditButton))
+    entries.append(.homeHideCompose(settings.homeHideComposeButton))
+    entries.append(.homeHideStory(settings.homeHideStoryButton))
+    entries.append(.homeFooter)
 
     entries.append(.designsHeader)
     entries.append(.importAction)
@@ -939,6 +1237,15 @@ private func urgramStudioSanitizedImportedDesign(_ design: UrgramThemeDesign, fa
     design.bubbleColors = Array(design.bubbleColors.prefix(2))
     design.wallpaperMode = min(2, max(0, design.wallpaperMode))
     design.bubbleRadius = min(24, max(4, design.bubbleRadius))
+    // URGRAM (Studio V2): font sizes are -1 (system) or a valid
+    // PresentationFontSize raw value (0...6); anything else is dropped so a
+    // malformed file cannot write an invalid size.
+    if let chatFontSize = design.chatFontSize, chatFontSize < -1 || chatFontSize > 6 {
+        design.chatFontSize = nil
+    }
+    if let listFontSize = design.listFontSize, listFontSize < -1 || listFontSize > 6 {
+        design.listFontSize = nil
+    }
     return design
 }
 
@@ -986,6 +1293,10 @@ public func urgramStudioController(context: AccountContext) -> ViewController {
     }
     let draftValue = Atomic<UrgramStudioDraft>(value: initialDraft)
     let draftPromise = ValuePromise<UrgramStudioDraft>(initialDraft, ignoreRepeated: true)
+    // URGRAM (Studio V2): latest persisted theme settings, kept in sync by
+    // the state signal below; the font-size cycle reads the effective
+    // fallback (system vs stored size) from it.
+    let themeSettingsValue = Atomic<PresentationThemeSettings>(value: PresentationThemeSettings.defaultSettings)
 
     let arguments = UrgramStudioControllerArguments(
         context: context,
@@ -1178,23 +1489,78 @@ public func urgramStudioController(context: AccountContext) -> ViewController {
             UrgramStudioImportPickerDelegate.active = delegate
             picker.delegate = delegate
             presentImpl(picker)
+        },
+        applyPreset: { presetDesign in
+            // Presets are not saved designs: clear the id so the apply path
+            // does not record a non-existent design as the active one.
+            var design = presetDesign
+            design.id = ""
+            urgramStudioApplyDesign(context: context, design: design)
+            let loadedDraft = UrgramStudioDraft(parameters: design, sourceDesignId: nil)
+            let _ = draftValue.swap(loadedDraft)
+            draftPromise.set(loadedDraft)
+        },
+        cycleFontSize: { isChat in
+            var draft = draftValue.with { $0 }
+            let themeSettings = themeSettingsValue.with { $0 }
+            let currentChatRaw: Int32 = draft.parameters.chatFontSize ?? (themeSettings.useSystemFont ? -1 : themeSettings.fontSize.rawValue)
+            let currentListRaw: Int32 = draft.parameters.listFontSize ?? (themeSettings.useSystemFont ? -1 : themeSettings.listsFontSize.rawValue)
+            // Font sizes share the runtime's single useSystemFont switch, so
+            // cycling one size pins the other at its current effective value.
+            if isChat {
+                draft.parameters.chatFontSize = urgramStudioNextFontSizeRaw(currentChatRaw)
+                if draft.parameters.listFontSize == nil {
+                    draft.parameters.listFontSize = currentListRaw
+                }
+            } else {
+                draft.parameters.listFontSize = urgramStudioNextFontSizeRaw(currentListRaw)
+                if draft.parameters.chatFontSize == nil {
+                    draft.parameters.chatFontSize = currentChatRaw
+                }
+            }
+            draft.sourceDesignId = nil
+            draft.parameters.id = ""
+            let _ = draftValue.swap(draft)
+            draftPromise.set(draft)
+        },
+        updateHomeFlag: { keyPath, value in
+            UrgramSettingsStore.shared.update { settings in
+                settings[keyPath: keyPath] = value
+            }
+        },
+        setArchiveHidden: { value in
+            let _ = updateChatArchiveSettings(engine: context.engine, { current in
+                return ChatArchiveSettings(isHiddenByDefault: value, hiddenPsaPeerId: current.hiddenPsaPeerId)
+            }).start()
         }
     )
+
+    let presentationThemeSettingsSignal = context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.presentationThemeSettings])
+    |> map { values -> PresentationThemeSettings in
+        return values.entries[ApplicationSpecificSharedDataKeys.presentationThemeSettings]?.get(PresentationThemeSettings.self) ?? PresentationThemeSettings.defaultSettings
+    }
+    let archiveHiddenSignal = context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.ApplicationSpecificPreference(key: ApplicationSpecificPreferencesKeys.chatArchiveSettings))
+    |> map { entry -> Bool in
+        return entry?.get(ChatArchiveSettings.self)?.isHiddenByDefault ?? false
+    }
 
     let signal = combineLatest(queue: .mainQueue(),
         context.sharedContext.presentationData,
         UrgramSettingsStore.shared.settingsSignal,
-        draftPromise.get()
+        draftPromise.get(),
+        presentationThemeSettingsSignal,
+        archiveHiddenSignal
     )
     |> deliverOnMainQueue
-    |> map { presentationData, settings, draft -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    |> map { presentationData, settings, draft, themeSettings, archiveHidden -> (ItemListControllerState, (ItemListNodeState, Any)) in
+        let _ = themeSettingsValue.swap(themeSettings)
         var chromePresentationData = presentationData
         let updatedTheme = presentationData.theme.withModalBlocksBackground()
         chromePresentationData = presentationData.withUpdated(theme: updatedTheme)
 
         let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(chromePresentationData), title: .text(isArabic ? "استوديو أورغرام" : "Urgram Studio"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(chromePresentationData), entries: urgramStudioControllerEntries(presentationData: presentationData, settings: settings, draft: draft), style: .blocks, animateChanges: true)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(chromePresentationData), entries: urgramStudioControllerEntries(presentationData: presentationData, settings: settings, draft: draft, themeSettings: themeSettings, archiveHidden: archiveHidden), style: .blocks, animateChanges: true)
 
         return (controllerState, (listState, arguments))
     }
