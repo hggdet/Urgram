@@ -121,7 +121,7 @@ func urgramStudioApplyDesign(context: AccountContext, design: UrgramThemeDesign)
 func urgramStudioResetAppearance(context: AccountContext) {
     let _ = updatePresentationThemeSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
         var currentTheme = current.currentModeTheme
-        if context.sharedContext.currentPresentationData.with { $0 }.autoNightModeTriggered {
+        if context.sharedContext.currentPresentationData.with({ $0 }).autoNightModeTriggered {
             currentTheme = current.currentModeAutomaticThemeSwitchSetting.theme
         }
 
