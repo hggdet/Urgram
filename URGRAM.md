@@ -361,6 +361,14 @@ Build 17 compiled SettingsUI last and died on two real Swift errors:
 The four cascade errors (`ItemGenerationArguments` inference) follow from
 the unresolved types above and are expected to vanish with them.
 
+**Build 18 failed before compilation** (run 43401099418, ~163 s): Bazel
+visibility — the `Postbox` target is only visible to its `:clients`
+package_group, which did not list `//submodules/SettingsUI`, so the new
+dep failed analysis. Fixed in build 19 (commit 6c817fb7, run 43402858441)
+by adding SettingsUI to the `clients` group in `submodules/Postbox/BUILD`.
+The two build-17 Swift errors remain unverified until a build gets past
+analysis.
+
 Still documented-not-wired after this wave: 6 voice-to-text, 9 hidden
 chats + decoy PIN, 10 keyword filters (storage exists; no honest
 message-hiding hook verified yet), 11 download boost, 12b folders at
