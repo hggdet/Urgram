@@ -4610,6 +4610,11 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
             guard let controller = self.controller else {
                 return
             }
+            // URGRAM (item 20, hard disable): the non-avatar branch below
+            // builds StoryContainerScreen directly — gate the whole action.
+            if UrgramFeatureHooks.disableStories {
+                return
+            }
             if let avatarNode = sourceView.asyncdisplaykit_node as? AvatarNode {
                 StoryContainerScreen.openPeerStories(context: self.context, peerId: member.id, parentController: controller, avatarNode: avatarNode)
                 return

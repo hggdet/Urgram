@@ -27,24 +27,33 @@ func urgramText(_ presentationData: ItemListPresentationData, _ en: String, _ ar
 private final class UrgramSettingsControllerArguments {
     let update: (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void
     let openFonts: () -> Void
+    let openStudio: () -> Void
     let openProxies: () -> Void
     let openArchive: () -> Void
     let openBookmarks: () -> Void
+    let openTemplates: () -> Void
+    let cycleAutoArchive: () -> Void
     let markAllChatsAsRead: () -> Void
 
     init(
         update: @escaping (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void,
         openFonts: @escaping () -> Void,
+        openStudio: @escaping () -> Void,
         openProxies: @escaping () -> Void,
         openArchive: @escaping () -> Void,
         openBookmarks: @escaping () -> Void,
+        openTemplates: @escaping () -> Void,
+        cycleAutoArchive: @escaping () -> Void,
         markAllChatsAsRead: @escaping () -> Void
     ) {
         self.update = update
         self.openFonts = openFonts
+        self.openStudio = openStudio
         self.openProxies = openProxies
         self.openArchive = openArchive
         self.openBookmarks = openBookmarks
+        self.openTemplates = openTemplates
+        self.cycleAutoArchive = cycleAutoArchive
         self.markAllChatsAsRead = markAllChatsAsRead
     }
 }
@@ -58,6 +67,7 @@ private enum UrgramSettingsSection: Int32 {
     case calls
     case translation
     case font
+    case studio
     case proxy
     case actions
 }
@@ -92,6 +102,8 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
     case doubleTapEditOwnMessages(Bool)
     case mentionAll(Bool)
     case autoReplyEnabled(Bool)
+    case openTemplates(Int)
+    case autoArchive(Int)
     case chatsFooter
 
     case mediaHeader
@@ -110,12 +122,16 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
     case fontHeader
     case fontChoice(String)
 
+    case studioHeader
+    case openStudio(String?)
+
     case proxyHeader
     case proxies
 
     case actionsHeader
     case markAllRead
     case accountInfo(Int64, Int32)
+    case editionInfo
 
     var section: ItemListSectionId {
         switch self {
@@ -125,7 +141,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return UrgramSettingsSection.privacy.rawValue
         case .contentHeader, .saveRestrictedBypass, .keepDeletedMessages, .keepEditedMessages, .openArchive, .openBookmarks, .hideSponsored, .keywordFiltersEnabled, .contentFooter:
             return UrgramSettingsSection.content.rawValue
-        case .chatsHeader, .hideStoriesBar, .disableStories, .foldersAtBottom, .doubleTapEditOwnMessages, .mentionAll, .autoReplyEnabled, .chatsFooter:
+        case .chatsHeader, .hideStoriesBar, .disableStories, .foldersAtBottom, .doubleTapEditOwnMessages, .mentionAll, .autoReplyEnabled, .openTemplates, .autoArchive, .chatsFooter:
             return UrgramSettingsSection.chats.rawValue
         case .mediaHeader, .defaultHDPhotos, .downloadBoost, .voiceNoiseSuppression:
             return UrgramSettingsSection.media.rawValue
@@ -135,9 +151,11 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return UrgramSettingsSection.translation.rawValue
         case .fontHeader, .fontChoice:
             return UrgramSettingsSection.font.rawValue
+        case .studioHeader, .openStudio:
+            return UrgramSettingsSection.studio.rawValue
         case .proxyHeader, .proxies:
             return UrgramSettingsSection.proxy.rawValue
-        case .actionsHeader, .markAllRead, .accountInfo:
+        case .actionsHeader, .markAllRead, .accountInfo, .editionInfo:
             return UrgramSettingsSection.actions.rawValue
         }
     }
@@ -170,11 +188,13 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
         case .doubleTapEditOwnMessages: return 35
         case .mentionAll: return 36
         case .autoReplyEnabled: return 37
-        case .chatsFooter: return 38
-        case .mediaHeader: return 40
-        case .defaultHDPhotos: return 41
-        case .downloadBoost: return 42
-        case .voiceNoiseSuppression: return 43
+        case .openTemplates: return 38
+        case .autoArchive: return 39
+        case .chatsFooter: return 40
+        case .mediaHeader: return 45
+        case .defaultHDPhotos: return 46
+        case .downloadBoost: return 47
+        case .voiceNoiseSuppression: return 48
         case .callsHeader: return 50
         case .callConfirmation: return 51
         case .forceTcpCalls: return 52
@@ -183,11 +203,14 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
         case .translateOutgoingLongPress: return 62
         case .fontHeader: return 70
         case .fontChoice: return 71
+        case .studioHeader: return 77
+        case .openStudio: return 78
         case .proxyHeader: return 75
         case .proxies: return 76
         case .actionsHeader: return 80
         case .markAllRead: return 81
         case .accountInfo: return 82
+        case .editionInfo: return 83
         }
     }
 
@@ -260,6 +283,23 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Mention All (@all)", "منشن الجميع (@all)"), value: value, keyPath: \.mentionAll)
         case let .autoReplyEnabled(value):
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Auto-Reply", "الرد التلقائي"), value: value, keyPath: \.autoReplyEnabled)
+        case let .openTemplates(count):
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Quick Replies", "ردود سريعة"), label: count > 0 ? "\(count)" : "", sectionId: self.section, style: .blocks, action: {
+                arguments.openTemplates()
+            })
+        case let .autoArchive(days):
+            let label: String
+            switch days {
+            case 30:
+                label = urgramText(presentationData, "30 days", "30 يومًا")
+            case 90:
+                label = urgramText(presentationData, "90 days", "90 يومًا")
+            default:
+                label = urgramText(presentationData, "Off", "إيقاف")
+            }
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Auto-Archive Inactive Chats", "أرشفة المحادثات الخاملة تلقائيًا"), label: label, sectionId: self.section, style: .blocks, action: {
+                arguments.cycleAutoArchive()
+            })
         case .chatsFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Some chat options take effect the next time the chat is opened.", "بعض خيارات المحادثة تسري عند فتح المحادثة في المرة القادمة.")), sectionId: self.section)
         case .mediaHeader:
@@ -288,6 +328,12 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "App Font", "خط التطبيق"), label: label, sectionId: self.section, style: .blocks, action: {
                 arguments.openFonts()
             })
+        case .studioHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Appearance", "المظهر"), sectionId: self.section)
+        case let .openStudio(activeDesignName):
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Urgram Studio", "استوديو أورغرام"), label: activeDesignName ?? "", sectionId: self.section, style: .blocks, action: {
+                arguments.openStudio()
+            })
         case .proxyHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Network", "الشبكة"), sectionId: self.section)
         case .proxies:
@@ -302,6 +348,8 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             })
         case let .accountInfo(id, datacenterId):
             return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Your Telegram ID: \(id) • Datacenter: DC\(datacenterId)", "معرّف حسابك (ID): \(id) • مركز البيانات: DC\(datacenterId)")), sectionId: self.section)
+        case .editionInfo:
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Edition: Clean", "النسخة النظيفة")), sectionId: self.section)
         }
     }
 }
@@ -309,41 +357,60 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
 private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic: Bool, accountId: Int64, datacenterId: Int32) -> [UrgramSettingsControllerEntry] {
     var entries: [UrgramSettingsControllerEntry] = []
 
-    entries.append(.ghostHeader)
-    entries.append(.ghostHideRead(settings.ghostHideRead))
-    entries.append(.ghostHideTyping(settings.ghostHideTyping))
-    entries.append(.ghostHideOnline(settings.ghostHideOnline))
-    entries.append(.ghostHideStoryViews(settings.ghostHideStoryViews))
-    entries.append(.ghostFooter)
+    // URGRAM (build 20, Clean Edition): in the clean edition the bypass
+    // sections/rows and every stored-but-unwired (dead) toggle are omitted
+    // entirely; the full edition shows everything as before.
+    let isClean = UrgramEdition.isClean
+
+    if !isClean {
+        entries.append(.ghostHeader)
+        entries.append(.ghostHideRead(settings.ghostHideRead))
+        entries.append(.ghostHideTyping(settings.ghostHideTyping))
+        entries.append(.ghostHideOnline(settings.ghostHideOnline))
+        entries.append(.ghostHideStoryViews(settings.ghostHideStoryViews))
+        entries.append(.ghostFooter)
+    }
 
     entries.append(.privacyHeader)
-    entries.append(.streamerMode(settings.streamerMode))
-    entries.append(.secretChatScreenshotSilent(settings.secretChatScreenshotSilent))
+    if !isClean {
+        entries.append(.streamerMode(settings.streamerMode))
+        entries.append(.secretChatScreenshotSilent(settings.secretChatScreenshotSilent))
+    }
     entries.append(.hidePhoneInProfile(settings.hidePhoneInProfile))
 
     entries.append(.contentHeader)
-    entries.append(.saveRestrictedBypass(settings.saveRestrictedBypass))
-    entries.append(.keepDeletedMessages(settings.keepDeletedMessages))
-    entries.append(.keepEditedMessages(settings.keepEditedMessages))
-    entries.append(.openArchive)
+    if !isClean {
+        entries.append(.saveRestrictedBypass(settings.saveRestrictedBypass))
+        entries.append(.keepDeletedMessages(settings.keepDeletedMessages))
+        entries.append(.keepEditedMessages(settings.keepEditedMessages))
+        entries.append(.openArchive)
+    }
     entries.append(.openBookmarks)
-    entries.append(.hideSponsored(settings.hideSponsored))
-    entries.append(.keywordFiltersEnabled(settings.keywordFiltersEnabled))
-    entries.append(.contentFooter)
+    if !isClean {
+        entries.append(.hideSponsored(settings.hideSponsored))
+        entries.append(.keywordFiltersEnabled(settings.keywordFiltersEnabled))
+        entries.append(.contentFooter)
+    }
 
     entries.append(.chatsHeader)
     entries.append(.hideStoriesBar(settings.hideStoriesBar))
     entries.append(.disableStories(settings.disableStories))
-    entries.append(.foldersAtBottom(settings.foldersAtBottom))
+    if !isClean {
+        entries.append(.foldersAtBottom(settings.foldersAtBottom))
+        entries.append(.mentionAll(settings.mentionAll))
+        entries.append(.autoReplyEnabled(settings.autoReplyEnabled))
+    }
     entries.append(.doubleTapEditOwnMessages(settings.doubleTapEditOwnMessages))
-    entries.append(.mentionAll(settings.mentionAll))
-    entries.append(.autoReplyEnabled(settings.autoReplyEnabled))
+    entries.append(.openTemplates(settings.replyTemplates.count))
+    entries.append(.autoArchive(settings.autoArchiveInactiveDays))
     entries.append(.chatsFooter)
 
     entries.append(.mediaHeader)
     entries.append(.defaultHDPhotos(settings.defaultHDPhotos))
-    entries.append(.downloadBoost(settings.downloadBoost))
-    entries.append(.voiceNoiseSuppression(settings.voiceNoiseSuppression))
+    if !isClean {
+        entries.append(.downloadBoost(settings.downloadBoost))
+        entries.append(.voiceNoiseSuppression(settings.voiceNoiseSuppression))
+    }
 
     entries.append(.callsHeader)
     entries.append(.callConfirmation(settings.callConfirmation))
@@ -351,10 +418,15 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
 
     entries.append(.translationHeader)
     entries.append(.translateChats(settings.translateChats))
-    entries.append(.translateOutgoingLongPress(settings.translateOutgoingLongPress))
+    if !isClean {
+        entries.append(.translateOutgoingLongPress(settings.translateOutgoingLongPress))
+    }
 
     entries.append(.fontHeader)
     entries.append(.fontChoice(urgramFontChoiceLabel(settings, isArabic: isArabic)))
+
+    entries.append(.studioHeader)
+    entries.append(.openStudio(settings.studioActiveDesignId.flatMap { activeId in settings.studioDesigns.first(where: { $0.id == activeId })?.name }))
 
     entries.append(.proxyHeader)
     entries.append(.proxies)
@@ -362,6 +434,9 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
     entries.append(.actionsHeader)
     entries.append(.markAllRead)
     entries.append(.accountInfo(accountId, datacenterId))
+    if isClean {
+        entries.append(.editionInfo)
+    }
 
     return entries
 }
@@ -420,6 +495,9 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
         openFonts: {
             pushImpl?(urgramFontSettingsController(context: context))
         },
+        openStudio: {
+            pushImpl?(urgramStudioController(context: context))
+        },
         openProxies: {
             pushImpl?(urgramProxySettingsController(context: context))
         },
@@ -429,8 +507,28 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
         openBookmarks: {
             pushImpl?(urgramBookmarksController(context: context))
         },
+        openTemplates: {
+            pushImpl?(urgramTemplatesSettingsController(context: context))
+        },
+        cycleAutoArchive: {
+            UrgramSettingsStore.shared.update { settings in
+                switch settings.autoArchiveInactiveDays {
+                case 30:
+                    settings.autoArchiveInactiveDays = 90
+                case 90:
+                    settings.autoArchiveInactiveDays = 0
+                default:
+                    settings.autoArchiveInactiveDays = 30
+                }
+            }
+        },
         markAllChatsAsRead: {
-            let _ = context.engine.messages.markAllChatsAsRead().startStandalone()
+            // URGRAM (build 20 fix): upstream's engine markAllChatsAsRead()
+            // only cleared chats the user had manually marked unread; the
+            // interactive variant (the one Telegram's own UI uses) walks
+            // every unread chat in the root list.
+            let _ = (context.engine.messages.markAllChatsAsReadInteractively(items: [(groupId: .root, filterPredicate: nil)])
+            |> deliverOnMainQueue).startStandalone()
         }
     )
 

@@ -1,5 +1,14 @@
 import Foundation
 
+// URGRAM (build 20, Clean Edition): which edition of the fork this build is.
+// `true` ships now: the Clean Edition compiles the privacy-bypass features
+// OUT of reach — `UrgramSettingsStore.mirrorToCoreHooks` forces every bypass
+// hook to `false` and the Urgram settings screen omits their controls — while
+// the full edition's code paths stay in the tree untouched behind this flag.
+public enum UrgramEdition {
+    public static let isClean: Bool = true
+}
+
 // URGRAM: TelegramCore cannot import TelegramUIPreferences (the dependency runs
 // the other way), so Urgram feature flags that gate core operations are bridged
 // through these plain statics. They are written exclusively by

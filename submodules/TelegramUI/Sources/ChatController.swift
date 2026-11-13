@@ -5767,6 +5767,12 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             guard let self else {
                 return
             }
+            // URGRAM (item 20, hard disable): story opens initiated from
+            // inside a chat build StoryContainerScreen directly instead of
+            // going through openPeerStoriesCustom — gate here too.
+            if UrgramFeatureHooks.disableStories {
+                return
+            }
             if let story = message.associatedStories[storyId], story.data.isEmpty {
                 self.present(UndoOverlayController(presentationData: self.presentationData, content:  .universal(animation: "story_expired", scale: 0.066, colors: [:], title: nil, text: self.presentationData.strings.Story_TooltipExpired, customUndoText: nil, timeout: nil), elevatedLayout: false, action: { _ in return true }), in: .current)
                 return

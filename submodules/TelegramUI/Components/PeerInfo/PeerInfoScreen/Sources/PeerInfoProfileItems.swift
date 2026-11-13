@@ -7,6 +7,7 @@ import TelegramCore
 import PeerInfoUI
 import TextFormat
 import PhoneNumberFormat
+import TelegramUIPreferences
 import SwiftSignalKit
 import TelegramStringFormatting
 import AsyncDisplayKit
@@ -53,6 +54,119 @@ enum InfoSection: Int, CaseIterable {
     case peerMembers
     case channelMonoforum
     case botAffiliateProgram
+}
+
+// URGRAM (build 20, Clean Edition): chat export. Pages through the engine's
+// verified in-chat search (empty query, .peer location — the same call the
+// admin-tools use to enumerate a peer's messages), which returns newest-first
+// pages continued via the returned SearchMessagesState, and writes the most
+// recent messages to a plain-text file.
+private func urgramExportRecentMessages(context: AccountContext, peerId: PeerId, state: SearchMessagesState?, accumulated: [Message], limit: Int) -> Signal<[Message], NoError> {
+    return context.engine.messages.searchMessages(location: .peer(peerId: peerId, fromId: nil, tags: nil, reactions: nil, threadId: nil, minDate: nil, maxDate: nil), query: "", state: state, limit: 100)
+    |> mapToSignal { result -> Signal<[Message], NoError> in
+        let (searchResult, nextState) = result
+        var messages = accumulated
+        messages.append(contentsOf: searchResult.messages)
+        if searchResult.completed || searchResult.messages.isEmpty || messages.count >= limit {
+            return .single(messages)
+        }
+        return urgramExportRecentMessages(context: context, peerId: peerId, state: nextState, accumulated: messages, limit: limit)
+    }
+}
+
+private func urgramExportPeerName(_ peer: Peer?) -> String {
+    guard let peer = peer else {
+        return ""
+    }
+    if let user = peer as? TelegramUser {
+        var name = user.firstName ?? ""
+        if let lastName = user.lastName, !lastName.isEmpty {
+            if !name.isEmpty {
+                name += " "
+            }
+            name += lastName
+        }
+        if name.isEmpty {
+            name = user.username ?? ""
+        }
+        return name
+    } else if let channel = peer as? TelegramChannel {
+        return channel.title
+    } else if let group = peer as? TelegramGroup {
+        return group.title
+    }
+    return ""
+}
+
+private func urgramExportChat(context: AccountContext, peerId: PeerId, peerTitle: String, interaction: PeerInfoInteraction) {
+    let limit = 1000
+    let _ = (urgramExportRecentMessages(context: context, peerId: peerId, state: nil, accumulated: [], limit: limit)
+    |> deliverOnMainQueue).start(next: { fetched in
+        let messages = Array(fetched.prefix(limit)).sorted(by: { lhs, rhs in
+            if lhs.timestamp != rhs.timestamp {
+                return lhs.timestamp < rhs.timestamp
+            }
+            return lhs.id.id < rhs.id.id
+        })
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        var lines: [String] = []
+        lines.append("Urgram Chat Export")
+        if !peerTitle.isEmpty {
+            lines.append("Chat: \(peerTitle)")
+        }
+        lines.append("Exported: \(dateFormatter.string(from: Date()))")
+        lines.append("Messages: \(messages.count) (most recent)")
+        lines.append("---")
+        for message in messages {
+            var body = message.text
+            if body.isEmpty {
+                for media in message.media {
+                    if media is TelegramMediaImage {
+                        body = "[photo]"
+                        break
+                    } else if let file = media as? TelegramMediaFile {
+                        if file.mimeType.hasPrefix("video/") {
+                            body = "[video]"
+                        } else if file.mimeType.hasPrefix("audio/") {
+                            body = "[audio]"
+                        } else {
+                            body = "[file]"
+                        }
+                        break
+                    } else if media is TelegramMediaPoll {
+                        body = "[poll]"
+                        break
+                    } else if media is TelegramMediaAction {
+                        body = "[service]"
+                        break
+                    }
+                }
+                if body.isEmpty {
+                    body = "[media]"
+                }
+            }
+            let date = dateFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(message.timestamp)))
+            let author = urgramExportPeerName(message.author)
+            if author.isEmpty {
+                lines.append("[\(date)] \(body)")
+            } else {
+                lines.append("[\(date)] \(author): \(body)")
+            }
+        }
+        let text = lines.joined(separator: "\n")
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("urgram-export-\(peerId.toInt64()).txt")
+        guard (try? text.write(to: url, atomically: true, encoding: .utf8)) != nil, let controller = interaction.getController() else {
+            return
+        }
+        let activityController = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        if let popover = activityController.popoverPresentationController {
+            popover.sourceView = controller.view
+            popover.sourceRect = CGRect(x: controller.view.bounds.midX, y: controller.view.bounds.maxY - 40.0, width: 0.0, height: 0.0)
+            popover.permittedArrowDirections = []
+        }
+        controller.present(activityController, animated: true)
+    })
 }
 
 func infoItems(
@@ -177,7 +291,9 @@ func infoItems(
             ))
         }
         
-        if let phone = user.phone {
+        // URGRAM (item 30, build-20 fix): hide the phone item on your OWN
+        // profile when the toggle is on (other people's profiles unaffected).
+        if let phone = user.phone, !(user.id == context.account.peerId && UrgramSettingsStore.shared.current.hidePhoneInProfile) {
             let formattedPhone = formatPhoneNumber(context: context, number: phone)
             let label: String
             if formattedPhone.hasPrefix("+888 ") {
@@ -953,6 +1069,33 @@ func infoItems(
         }
     }
     
+    // URGRAM (build 20, Clean Edition): export this chat's recent history
+    // to a text file, from its profile screen. Secret chats are excluded
+    // by design (their contents must not leave the chat as a file).
+    if let peer = data.peer {
+        let exportPeerId: PeerId?
+        let exportPeerTitle: String
+        switch peer {
+        case let .user(user):
+            exportPeerId = user.id
+            exportPeerTitle = urgramExportPeerName(user)
+        case let .legacyGroup(group):
+            exportPeerId = group.id
+            exportPeerTitle = group.title
+        case let .channel(channel):
+            exportPeerId = channel.id
+            exportPeerTitle = channel.title
+        case .secretChat:
+            exportPeerId = nil
+            exportPeerTitle = ""
+        }
+        if let exportPeerId = exportPeerId {
+            items[.peerInfo]!.append(PeerInfoScreenDisclosureItem(id: "urgram-export-chat", text: presentationData.strings.primaryComponent.languageCode.hasPrefix("ar") ? "تصدير إلى ملف (أورغرام)" : "Export to File (Urgram)", action: {
+                urgramExportChat(context: context, peerId: exportPeerId, peerTitle: exportPeerTitle, interaction: interaction)
+            }))
+        }
+    }
+
     var result: [(AnyHashable, [PeerInfoScreenItem])] = []
     for section in InfoSection.allCases {
         if let sectionItems = items[section], !sectionItems.isEmpty {

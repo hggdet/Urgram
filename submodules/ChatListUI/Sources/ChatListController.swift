@@ -959,8 +959,13 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
             
         self.shouldFixStorySubscriptionOrder = false
         self.fixedStorySubscriptionOrder = self.rawStorySubscriptions?.items.map(\.peer.id) ?? []
-        if self.orderedStorySubscriptions != self.rawStorySubscriptions {
-            self.orderedStorySubscriptions = self.rawStorySubscriptions
+        // URGRAM (item 20): restoring the automatic order must not undo
+        // "Hide Stories Bar" / "Disable Stories" — re-apply the emptied
+        // subscription list while either is on.
+        let urgramHideStories = UrgramSettingsStore.shared.current.hideStoriesBar || UrgramSettingsStore.shared.current.disableStories
+        let targetSubscriptions = urgramHideStories ? self.rawStorySubscriptions.map { EngineStorySubscriptions(accountItem: nil, items: [], hasMoreToken: $0.hasMoreToken) } : self.rawStorySubscriptions
+        if self.orderedStorySubscriptions != targetSubscriptions {
+            self.orderedStorySubscriptions = targetSubscriptions
             
             // important not to cause a loop
             DispatchQueue.main.async { [weak self] in
@@ -4457,6 +4462,12 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     }
     
     public func openStories(peerId: EnginePeer.Id, completion: @escaping (StoryContainerScreen) -> Void = { _ in }) {
+        // URGRAM (item 20, hard disable): the chat-list stories entry point —
+        // one branch below goes through openPeerStoriesCustom (gated), the
+        // fall-through builds StoryContainerScreen directly. Gate both here.
+        if UrgramFeatureHooks.disableStories {
+            return
+        }
         if let navigationBarView = self.chatListDisplayNode.navigationBarView.view as? ChatListNavigationBar.View {
             if navigationBarView.storiesUnlocked {
                 self.shouldFixStorySubscriptionOrder = true

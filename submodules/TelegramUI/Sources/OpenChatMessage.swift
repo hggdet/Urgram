@@ -39,6 +39,11 @@ func openChatMessageImpl(_ params: OpenChatMessageParams) -> Bool {
     }
     
     if let story {
+        // URGRAM (item 20, hard disable): opening a story attached to a
+        // message builds StoryContainerScreen directly — gate here too.
+        if UrgramFeatureHooks.disableStories {
+            return true
+        }
         let navigationController = params.navigationController
         let context = params.context
         let storyContent = SingleStoryContentContextImpl(context: params.context, storyId: story.storyId, readGlobally: true)

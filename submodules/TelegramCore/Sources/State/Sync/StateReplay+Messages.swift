@@ -274,6 +274,15 @@ extension ReplayContext {
     }
     
     func applyDeleteMessagesWithGlobalIds(_ ids: [Int32]) {
+        // URGRAM (item 3): server `updateDeleteMessages` — remote deletes in
+        // private chats and basic groups — arrives as global ids and deletes
+        // through Postbox directly, bypassing `_internal_deleteMessages`.
+        // Archive the resolved messages first so "Keep Deleted Messages"
+        // covers this path too (channel deletes already funnel through
+        // `applyDeleteMessages` -> `_internal_deleteMessages`).
+        if UrgramFeatureHooks.keepDeletedMessages {
+            urgramArchiveMessagesBeforeDeletion(transaction: transaction, ids: transaction.messageIdsForGlobalIds(ids))
+        }
         var resourceIds: [MediaResourceId] = []
         transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
             addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)

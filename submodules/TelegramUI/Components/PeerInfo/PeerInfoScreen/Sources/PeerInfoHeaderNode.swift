@@ -1311,10 +1311,18 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             smallTitleAttributes = MultiScaleTextState.Attributes(font: Font.medium(28.0), color: .white, shadowColor: titleShadowColor)
             
             if self.isSettings, case let .user(user) = peer {
-                var subtitle = formatPhoneNumber(context: self.context, number: user.phone ?? "")
-                
+                // URGRAM (item 30, build-20 fix): the settings header subtitle
+                // also shows the phone — hide it here too when the toggle is
+                // on, leaving only the username.
+                var subtitle: String
+                if UrgramSettingsStore.shared.current.hidePhoneInProfile {
+                    subtitle = ""
+                } else {
+                    subtitle = formatPhoneNumber(context: self.context, number: user.phone ?? "")
+                }
+
                 if let mainUsername = user.addressName, !mainUsername.isEmpty {
-                    subtitle = "\(subtitle) • @\(mainUsername)"
+                    subtitle = subtitle.isEmpty ? "@\(mainUsername)" : "\(subtitle) • @\(mainUsername)"
                 }
                 subtitleStringText = subtitle
                 subtitleAttributes = MultiScaleTextState.Attributes(font: Font.regular(17.0), color: .white)

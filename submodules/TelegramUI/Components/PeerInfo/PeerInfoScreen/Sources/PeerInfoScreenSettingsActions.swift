@@ -230,16 +230,19 @@ extension PeerInfoScreenNode {
                 // URGRAM (item 7): no account-count cap — upstream limits
                 // adding accounts to 3 (4 with Premium) behind a paywall
                 // screen; Urgram removes the cap entirely.
-                var maximumAvailableAccounts: Int = 100
+                // URGRAM (build 20, Clean Edition): the clean edition keeps
+                // upstream's original 3 / 4-with-Premium limits; only the
+                // full edition lifts the cap to 100.
+                var maximumAvailableAccounts: Int = UrgramEdition.isClean ? 3 : 100
                 if accountAndPeer?.1.isPremium == true && !strongSelf.context.account.testingEnvironment {
-                    maximumAvailableAccounts = 100
+                    maximumAvailableAccounts = UrgramEdition.isClean ? 4 : 100
                 }
                 var count: Int = 1
                 for (accountContext, peer, _) in accountsAndPeers {
                     if !accountContext.account.testingEnvironment {
                         if peer.isPremium {
                             // URGRAM (item 7)
-                            maximumAvailableAccounts = 100
+                            maximumAvailableAccounts = UrgramEdition.isClean ? 4 : 100
                         }
                         count += 1
                     }

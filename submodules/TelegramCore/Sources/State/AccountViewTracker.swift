@@ -965,6 +965,13 @@ public final class AccountViewTracker {
     
     public func updateSeenLiveLocationForMessageIds(messageIds: Set<MessageId>) {
         self.queue.async { [self] in
+            // URGRAM (item 1, ghost mode): viewing a live-location message
+            // sends readMessageContents directly from here, bypassing the
+            // ManagedSynchronizeConsumeMessageContentsOperations gate —
+            // suppress the receipt while ghost mode is on.
+            if UrgramFeatureHooks.ghostHideRead {
+                return
+            }
             var addedMessageIds: [MessageId] = []
             let timestamp = Int32(CFAbsoluteTimeGetCurrent())
             for messageId in messageIds {

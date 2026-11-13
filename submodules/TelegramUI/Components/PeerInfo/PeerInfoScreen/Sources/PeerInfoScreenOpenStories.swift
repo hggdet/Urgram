@@ -2,11 +2,18 @@ import Foundation
 import UIKit
 import Display
 import AccountContext
+import TelegramCore
 import StoryContainerScreen
 import SwiftSignalKit
 
 extension PeerInfoScreenNode {
     func openStories(fromAvatar: Bool) {
+        // URGRAM (item 20, hard disable): the non-avatar branch below builds
+        // StoryContainerScreen directly instead of going through
+        // openPeerStories — gate the whole entry point.
+        if UrgramFeatureHooks.disableStories {
+            return
+        }
         guard let controller = self.controller else {
             return
         }

@@ -11,6 +11,70 @@ import SwiftSignalKit
 // keeps an in-memory value for synchronous readers, and mirrors the flags that
 // gate TelegramCore operations into `UrgramFeatureHooks` (TelegramCore cannot
 // import this module).
+// URGRAM (build 20, Urgram Studio): one saved appearance design. Only
+// parameters that map to real runtime theme fields are stored — see
+// URGRAM.md "Build 20" for the verified mapping and what was excluded.
+// Colors are ARGB UInt32 (same convention as PresentationThemeAccentColor
+// presets). `bubbleColors` empty means "derive outgoing bubble colors from
+// the accent color"; one entry is a solid fill; two entries are a gradient.
+public struct UrgramThemeDesign: Codable, Equatable {
+    public var id: String
+    public var name: String
+    public var accentColor: UInt32
+    public var bubbleColors: [UInt32]
+    // 0 = keep the theme's default chat wallpaper, 1 = solid color, 2 = gradient
+    public var wallpaperMode: Int32
+    public var wallpaperColorA: UInt32
+    public var wallpaperColorB: UInt32
+    public var bubbleRadius: Int32
+
+    public init(
+        id: String,
+        name: String,
+        accentColor: UInt32,
+        bubbleColors: [UInt32],
+        wallpaperMode: Int32,
+        wallpaperColorA: UInt32,
+        wallpaperColorB: UInt32,
+        bubbleRadius: Int32
+    ) {
+        self.id = id
+        self.name = name
+        self.accentColor = accentColor
+        self.bubbleColors = bubbleColors
+        self.wallpaperMode = wallpaperMode
+        self.wallpaperColorA = wallpaperColorA
+        self.wallpaperColorB = wallpaperColorB
+        self.bubbleRadius = bubbleRadius
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: StringCodingKey.self)
+
+        self.id = try container.decodeIfPresent(String.self, forKey: "id") ?? ""
+        self.name = try container.decodeIfPresent(String.self, forKey: "name") ?? ""
+        self.accentColor = try container.decodeIfPresent(UInt32.self, forKey: "accentColor") ?? 0xff2aabee
+        self.bubbleColors = try container.decodeIfPresent([UInt32].self, forKey: "bubbleColors") ?? []
+        self.wallpaperMode = try container.decodeIfPresent(Int32.self, forKey: "wallpaperMode") ?? 0
+        self.wallpaperColorA = try container.decodeIfPresent(UInt32.self, forKey: "wallpaperColorA") ?? 0xff2aabee
+        self.wallpaperColorB = try container.decodeIfPresent(UInt32.self, forKey: "wallpaperColorB") ?? 0xff2aabee
+        self.bubbleRadius = try container.decodeIfPresent(Int32.self, forKey: "bubbleRadius") ?? 16
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: StringCodingKey.self)
+
+        try container.encode(self.id, forKey: "id")
+        try container.encode(self.name, forKey: "name")
+        try container.encode(self.accentColor, forKey: "accentColor")
+        try container.encode(self.bubbleColors, forKey: "bubbleColors")
+        try container.encode(self.wallpaperMode, forKey: "wallpaperMode")
+        try container.encode(self.wallpaperColorA, forKey: "wallpaperColorA")
+        try container.encode(self.wallpaperColorB, forKey: "wallpaperColorB")
+        try container.encode(self.bubbleRadius, forKey: "bubbleRadius")
+    }
+}
+
 public struct UrgramSettings: Codable, Equatable {
     // Ghost mode (item 1)
     public var ghostHideRead: Bool
@@ -51,6 +115,14 @@ public struct UrgramSettings: Codable, Equatable {
     public var fontChoice: String
     public var customFontName: String?
     public var customFontFileName: String?
+    // Urgram Studio (build 20): saved appearance designs + the applied one
+    public var studioDesigns: [UrgramThemeDesign]
+    public var studioActiveDesignId: String?
+    // Clean Edition additions (build 20): quick-reply templates (inserted
+    // into the chat input from the attachment menu) and the auto-archive
+    // rule for inactive chats (0 = off, otherwise days of inactivity).
+    public var replyTemplates: [String]
+    public var autoArchiveInactiveDays: Int
 
     public init(
         ghostHideRead: Bool,
@@ -83,7 +155,11 @@ public struct UrgramSettings: Codable, Equatable {
         translateOutgoingLongPress: Bool,
         fontChoice: String,
         customFontName: String?,
-        customFontFileName: String?
+        customFontFileName: String?,
+        studioDesigns: [UrgramThemeDesign],
+        studioActiveDesignId: String?,
+        replyTemplates: [String],
+        autoArchiveInactiveDays: Int
     ) {
         self.ghostHideRead = ghostHideRead
         self.ghostHideTyping = ghostHideTyping
@@ -116,6 +192,10 @@ public struct UrgramSettings: Codable, Equatable {
         self.fontChoice = fontChoice
         self.customFontName = customFontName
         self.customFontFileName = customFontFileName
+        self.studioDesigns = studioDesigns
+        self.studioActiveDesignId = studioActiveDesignId
+        self.replyTemplates = replyTemplates
+        self.autoArchiveInactiveDays = autoArchiveInactiveDays
     }
 
     public static var defaultSettings: UrgramSettings {
@@ -150,7 +230,11 @@ public struct UrgramSettings: Codable, Equatable {
             translateOutgoingLongPress: false,
             fontChoice: "system",
             customFontName: nil,
-            customFontFileName: nil
+            customFontFileName: nil,
+            studioDesigns: [],
+            studioActiveDesignId: nil,
+            replyTemplates: [],
+            autoArchiveInactiveDays: 0
         )
     }
 
@@ -188,6 +272,10 @@ public struct UrgramSettings: Codable, Equatable {
         self.fontChoice = try container.decodeIfPresent(String.self, forKey: "fontChoice") ?? "system"
         self.customFontName = try container.decodeIfPresent(String.self, forKey: "customFontName")
         self.customFontFileName = try container.decodeIfPresent(String.self, forKey: "customFontFileName")
+        self.studioDesigns = try container.decodeIfPresent([UrgramThemeDesign].self, forKey: "studioDesigns") ?? []
+        self.studioActiveDesignId = try container.decodeIfPresent(String.self, forKey: "studioActiveDesignId")
+        self.replyTemplates = try container.decodeIfPresent([String].self, forKey: "replyTemplates") ?? []
+        self.autoArchiveInactiveDays = try container.decodeIfPresent(Int.self, forKey: "autoArchiveInactiveDays") ?? 0
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -224,6 +312,10 @@ public struct UrgramSettings: Codable, Equatable {
         try container.encode(self.fontChoice, forKey: "fontChoice")
         try container.encodeIfPresent(self.customFontName, forKey: "customFontName")
         try container.encodeIfPresent(self.customFontFileName, forKey: "customFontFileName")
+        try container.encode(self.studioDesigns, forKey: "studioDesigns")
+        try container.encodeIfPresent(self.studioActiveDesignId, forKey: "studioActiveDesignId")
+        try container.encode(self.replyTemplates, forKey: "replyTemplates")
+        try container.encode(self.autoArchiveInactiveDays, forKey: "autoArchiveInactiveDays")
     }
 }
 
@@ -289,15 +381,20 @@ public final class UrgramSettingsStore {
 
     // URGRAM
     public static func mirrorToCoreHooks(_ settings: UrgramSettings) {
-        UrgramFeatureHooks.ghostHideRead = settings.ghostHideRead
-        UrgramFeatureHooks.ghostHideTyping = settings.ghostHideTyping
-        UrgramFeatureHooks.ghostHideOnline = settings.ghostHideOnline
-        UrgramFeatureHooks.ghostHideStoryViews = settings.ghostHideStoryViews
-        UrgramFeatureHooks.hideSponsored = settings.hideSponsored
-        UrgramFeatureHooks.saveRestrictedBypass = settings.saveRestrictedBypass
-        UrgramFeatureHooks.keepDeletedMessages = settings.keepDeletedMessages
-        UrgramFeatureHooks.keepEditedMessages = settings.keepEditedMessages
+        // URGRAM (build 20, Clean Edition): every privacy-bypass hook is
+        // forced off at this single mirroring point when the clean edition
+        // ships, whatever a previously stored settings value says. The
+        // non-bypass hooks (disableStories) mirror normally in both editions.
+        let bypassAllowed = !UrgramEdition.isClean
+        UrgramFeatureHooks.ghostHideRead = bypassAllowed && settings.ghostHideRead
+        UrgramFeatureHooks.ghostHideTyping = bypassAllowed && settings.ghostHideTyping
+        UrgramFeatureHooks.ghostHideOnline = bypassAllowed && settings.ghostHideOnline
+        UrgramFeatureHooks.ghostHideStoryViews = bypassAllowed && settings.ghostHideStoryViews
+        UrgramFeatureHooks.hideSponsored = bypassAllowed && settings.hideSponsored
+        UrgramFeatureHooks.saveRestrictedBypass = bypassAllowed && settings.saveRestrictedBypass
+        UrgramFeatureHooks.keepDeletedMessages = bypassAllowed && settings.keepDeletedMessages
+        UrgramFeatureHooks.keepEditedMessages = bypassAllowed && settings.keepEditedMessages
         UrgramFeatureHooks.disableStories = settings.disableStories
-        UrgramFeatureHooks.secretChatScreenshotSilent = settings.secretChatScreenshotSilent
+        UrgramFeatureHooks.secretChatScreenshotSilent = bypassAllowed && settings.secretChatScreenshotSilent
     }
 }

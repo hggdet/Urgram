@@ -313,6 +313,8 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     private var experimentalUISettingsDisposable: Disposable?
     // URGRAM
     private var urgramSettingsDisposable: Disposable?
+    // URGRAM (build 20)
+    private var urgramAutoArchiveDisposable: Disposable?
     
     public var presentGlobalController: (ViewController, Any?) -> Void = { _, _ in }
     public var presentCrossfadeController: () -> Void = {}
@@ -586,6 +588,22 @@ public final class SharedAccountContextImpl: SharedAccountContext {
                 Font.urgramCustomFamilyName = UrgramFontManager.resolvedFamilyName(settings: settings)
                 // URGRAM (item 21): keep the media picker's HD default in sync.
                 UserDefaults.standard.set(settings.defaultHDPhotos, forKey: "TG_photoHighQuality_v0")
+            }
+        })
+
+        // URGRAM (build 20, Clean Edition): once per cold start, when the
+        // first account contexts become active, run the auto-archive pass
+        // for every active account (the pass itself is throttled to once
+        // per 24 hours and no-ops while the setting is off).
+        self.urgramAutoArchiveDisposable = (self.activeAccountContexts
+        |> map { _, accounts, _ in
+            return accounts.map { $0.1 }
+        }
+        |> filter { !$0.isEmpty }
+        |> take(1)
+        |> deliverOnMainQueue).start(next: { accountContexts in
+            for accountContext in accountContexts {
+                urgramRunAutoArchiveIfNeeded(context: accountContext)
             }
         })
         

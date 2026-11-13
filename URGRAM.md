@@ -387,3 +387,174 @@ usage in the same tree. Remaining risk concentrates in: Swift type-checking
 details the review could not execute, the ItemList entry plumbing, and the
 font face-matching at runtime. The first CI build + simulator pass is the
 real verification.
+
+## Build 20 — Urgram Studio
+
+A design studio inside the Urgram settings section ("Urgram Studio" /
+«استوديو أورغرام», row under the Font section, label shows the active
+design's name). The user designs the app's appearance with a LIVE preview,
+saves named designs, shares a design as a `.urgramtheme` file and imports
+designs shared by others (import applies in one tap).
+
+### What was wired (all verified against the in-tree theme system)
+
+Storage: `UrgramThemeDesign` (Codable, manual StringCodingKey pattern like
+the rest of UrgramSettings) + `studioDesigns: [UrgramThemeDesign]` and
+`studioActiveDesignId: String?` on `UrgramSettings`
+(`TelegramUIPreferences/Sources/UrgramSettings.swift`). A design stores
+ONLY parameters that map to real runtime theme fields: `accentColor`
+(ARGB), `bubbleColors` (ARGB; empty = derive from accent, 1 = solid,
+2 = gradient), `wallpaperMode` (0 theme default / 1 solid / 2 gradient) +
+`wallpaperColorA/B`, `bubbleRadius`.
+
+Apply path (`SettingsUI/Sources/UrgramStudioController.swift`,
+`urgramStudioApplyDesign`): writes through
+`updatePresentationThemeSettingsInteractively`, mirroring
+ThemeSettingsController's accent-apply block — general theme reference
+(cloud theme with settings → its builtin base), validity-checked with
+`makePresentationTheme`, accent entry
+`themeSpecificAccentColors[general.index]` (baseColor `.custom`,
+index −1, wallpaper embedded via `withUpdatedWallpaper`), the
+colored-index `themeSpecificChatWallpapers` entry for builtin themes
+(without clobbering a photo/file wallpaper the user set), and
+`chatBubbleSettings.mainRadius` (+ `auxiliaryRadius = mainRadius / 2`,
+the BubbleSettingsController rule; other bubble settings preserved).
+The presentation-data signal re-emits, so the whole app re-themes live,
+no restart. Reset removes the accent/wallpaper entries for the current
+theme and restores radius 16/8.
+
+Preview: the real `ThemeSettingsChatPreviewItem` (actual Telegram bubble
+rendering over the draft wallpaper) with the theme produced by
+`customizePresentationTheme` from the draft (same function the upstream
+accent editor previews with), plus a chat-list row item rendered from the
+preview theme's real `chatList` colors (title / message / date / unread
+badge / accent avatar), so the accent's effect on the chat list is visible.
+
+Color editing: preset palette (swatches) + HSB sliders
+(`UrgramStudioSliderItem`, adapted from ThemeSettingsBrightnessItem on
+SliderComponent); `BubbleSettingsRadiusItem` is reused as-is for the
+radius (upstream range 8–16 step 2; the stored radius still accepts
+4–24 from imported designs and applies as-is).
+
+Share/import: export encodes the design as JSON in a `<name>.urgramtheme`
+file and offers it via UIActivityViewController (send it in any chat).
+Import uses the Studio's document picker (unfiltered `.data`, same
+build-15 rule as fonts — a sideloaded app declares no UTI for the type),
+parses + sanitizes (fresh UUID, radius clamped 4–24, ≤2 bubble colors),
+saves and applies immediately.
+
+### Excluded, and why
+
+- Incoming bubble color, message text colors: the accent mechanism never
+  touches them; only full .attheme theme editing could, which is a
+  different (heavyweight) system — out of scope.
+- Chat-list and navigation/tab-bar BACKGROUND colors: they follow the
+  base theme; the accent mechanism tints only their accents (tab bar
+  selection, badges, checkmarks), which the Studio does control.
+- "Glass intensity": no theme parameter exists (only the unrelated
+  ExperimentalUISettings.fakeGlass bool).
+- Chat-list density: no runtime parameter exists.
+- "Open in Urgram" document-type registration for .urgramtheme: not
+  cheap — it needs an Info.plist document type plus AppDelegate URL
+  routing; the Studio's in-app document-picker import covers sharing.
+- Applying a design while a cloud theme with settings is active switches
+  the current theme to that theme's builtin base first — this is
+  upstream's own accent-apply semantics, inherited deliberately.
+
+## Build 20 — Clean Edition
+
+The user's call (2026-11-13): ship a CLEAN edition — no privacy-bypass
+features, everything shown must genuinely work — while the full edition's
+code stays in the same tree behind an edition flag.
+
+### Edition mechanics
+
+- `UrgramEdition.isClean` (`TelegramCore/Sources/State/UrgramFeatureHooks.swift`)
+  is a compile-time constant, `true` in this build.
+- Gating is at the single mirroring point: `UrgramSettingsStore.mirrorToCoreHooks`
+  forces every bypass hook to `false` in the clean edition, whatever a
+  previously stored settings value says: ghostHideRead, ghostHideTyping,
+  ghostHideOnline, ghostHideStoryViews, saveRestrictedBypass,
+  keepDeletedMessages, keepEditedMessages, hideSponsored,
+  secretChatScreenshotSilent. Non-bypass hooks (disableStories) mirror
+  normally. No bypass code path or store was deleted.
+- The Urgram settings screen omits, in clean mode: the whole Ghost Mode
+  section; streamerMode + secret-chat-screenshot rows (hidePhoneInProfile
+  stays); saveRestrictedBypass, keepDeletedMessages, keepEditedMessages,
+  the archive row, hideSponsored, keywordFilters and the archive footer;
+  and the stored-but-unwired dead toggles: streamerMode, keywordFilters,
+  downloadBoost, voiceNoiseSuppression, mentionAll, autoReplyEnabled,
+  foldersAtBottom, translateOutgoingLongPress (verified: zero consumers
+  of translateOutgoingLongPress exist outside the settings files).
+- Account cap: `PeerInfoScreenSettingsActions` .addAccount restores
+  upstream's 3 / 4-with-Premium limits when clean (100 in the full edition).
+- An "Edition: Clean" / «النسخة النظيفة» row shows at the bottom of the
+  Urgram section when clean.
+- Also fixed here (both editions): "Mark All Chats as Read" now calls
+  `markAllChatsAsReadInteractively(items: [(groupId: .root, filterPredicate: nil)])`
+  — the call Telegram's own UI uses; the old `markAllChatsAsRead()` only
+  cleared chats the user had manually marked unread.
+
+### New clean features
+
+- **Message reminders — WIRED.** "Remind Me" / «ذكّرني» in the message
+  context menu (next to Bookmark; secret chats excluded) → alert with
+  1 hour / tomorrow / next week → `UNUserNotificationCenter` local
+  notification. The userInfo deliberately carries the exact keys
+  AppDelegate's stock tap handler parses (`accountId`/`peerId` as Int64
+  with the peer id packed via `PeerId.toInt64()`,
+  `messageId.namespace`/`messageId.id` as Int32, categoryIdentifier "c"),
+  so a tap opens the chat AT the message via the unmodified
+  `openChatWhenReady` path — message-level deep link, zero routing changes.
+- **Quick-reply templates — WIRED.** Storage: `UrgramSettings.replyTemplates`.
+  Management screen (Urgram section → "Quick Replies"): list, add via
+  prompt, delete via action sheet (`UrgramTemplatesController.swift`).
+  Use seam: new `AttachmentButtonType.urgramTemplates` (enum + key + ==
+  in AttachmentUI, name/icon + accessibility in AttachmentPanel — label
+  is the fork's bilingual string, icon reuses the TabNews animation),
+  inserted into the attach menu next to .location whenever at least one
+  template exists. Its handler presents `urgramTemplatePickerController`
+  as a modal over the chat (a plain ItemListController, not an
+  AttachmentContainable) and inserts the chosen text at the cursor via
+  `interfaceInteraction.updateTextInputStateAndMode` — the same input-state
+  transform the formatting shortcuts use.
+- **Export chat to file — WIRED.** "Export to File (Urgram)" /
+  «تصدير إلى ملف (أورغرام)» disclosure row in the peer-info screen
+  (users, groups, channels; secret chats excluded by design). History is
+  fetched through the engine's in-chat search
+  (`engine.messages.searchMessages`, .peer location, empty query,
+  newest-first pages continued via the returned SearchMessagesState,
+  capped at the 1000 most recent messages), written as a .txt
+  (date, author, text; media as [photo]/[video]/[audio]/[file]/[poll]/
+  [service] placeholders) and shared via UIActivityViewController.
+- **Auto-archive inactive chats — WIRED.** `UrgramSettings.autoArchiveInactiveDays`
+  (0 = off) with an Off / 30 days / 90 days cycle row in the Urgram
+  section. Engine: `urgramRunAutoArchiveIfNeeded` (TelegramUI) runs once
+  per cold start from SharedAccountContext when the first account
+  contexts become active, throttled to once per 24h (UserDefaults), and
+  archives every non-pinned root-list peer whose latest message is older
+  than the threshold — using the same
+  `engine.peers.updatePeersGroupIdInteractively(peerIds:groupId: .archive)`
+  the swipe/context-menu archive actions use. The account's own Saved
+  Messages chat is never archived; the pass reads the root chat list via
+  `engine.messages.chatList(group: .root, count: 1000)`, skipping the
+  view's loading emission. Pinned detection: `ChatListIndex.pinningIndex`.
+- **Folders at bottom — DROPPED.** The filter tab strip is laid out
+  structurally inside ChatListContainerNode (stories header offsets,
+  pinned-header fractions and list insets all derive from its top
+  placement); moving it is a layout restructure, not a contained change,
+  and this environment cannot do the simulator frame verification
+  AGENTS.md requires for layout work. The toggle stays out of the clean
+  UI (and remains, untouched, in the full edition).
+
+### Verification
+
+- `python3 build-system/Make/PostboxImportCheck.py` exits 0.
+- No new `.postbox` use and no new `import Postbox` anywhere in this
+  change (Postbox types named in the PeerInfo/TelegramUI targets follow
+  those targets' existing visibility pattern — cf. `Namespaces.*` in
+  PeerInfoScreen.swift / ChatInterfaceStateContextMenus.swift).
+- Not verified here (needs CI + device, as with builds 14/19): compile
+  of the new Swift (highest-risk surfaces: the attach-menu handler and
+  the SharedAccountContext cold-start subscription), and the visual
+  result of the new attach-menu button and settings rows.

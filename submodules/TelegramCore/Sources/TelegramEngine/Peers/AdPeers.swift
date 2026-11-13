@@ -39,6 +39,12 @@ public class AdPeer: Equatable {
 }
 
 func _internal_searchAdPeers(account: Account, query: String) -> Signal<[AdPeer], NoError> {
+    // URGRAM (item 8): with "Hide Sponsored Messages" on, don't fetch the
+    // sponsored peers shown in search either (the channel gate lives in
+    // AdMessagesHistoryContext.activate).
+    if UrgramFeatureHooks.hideSponsored {
+        return .single([])
+    }
     return account.network.request(Api.functions.contacts.getSponsoredPeers(q: query))
     |> map(Optional.init)
     |> `catch` { _ in

@@ -1931,7 +1931,14 @@ public final class PeerInfoStoryPaneNode: ASDisplayNode, PeerInfoPaneNode, ASScr
                 }
                 self.pendingOpenListContext = nil
                 self.itemGrid.isUserInteractionEnabled = true
-                
+
+                // URGRAM (item 20, hard disable): story opens from the
+                // profile stories grid build StoryContainerScreen directly
+                // instead of going through openPeerStoriesCustom — gate here.
+                if UrgramFeatureHooks.disableStories {
+                    return
+                }
+
                 var transitionIn: StoryContainerScreen.TransitionIn?
                 
                 let story = item.story

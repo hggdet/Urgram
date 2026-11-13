@@ -16,6 +16,7 @@ import ChatPresentationInterfaceState
 import LegacyComponents
 import LegacyUI
 import AttachmentUI
+import SettingsUI
 import MediaPickerUI
 import LegacyCamera
 import LegacyMediaPickerUI
@@ -358,6 +359,22 @@ extension ChatControllerImpl {
                             } else {
                                 allButtons.append(.quickReply)
                             }
+                        }
+                    }
+
+                    // URGRAM (build 20): the user's own quick-reply templates
+                    // (managed in the Urgram settings section) get an attach
+                    // menu button whenever at least one template exists.
+                    if !UrgramSettingsStore.shared.current.replyTemplates.isEmpty {
+                        if let index = buttons.firstIndex(where: { $0 == .location }) {
+                            buttons.insert(.urgramTemplates, at: index + 1)
+                        } else {
+                            buttons.append(.urgramTemplates)
+                        }
+                        if let index = allButtons.firstIndex(where: { $0 == .location }) {
+                            allButtons.insert(.urgramTemplates, at: index + 1)
+                        } else {
+                            allButtons.append(.urgramTemplates)
                         }
                     }
 
@@ -1078,6 +1095,34 @@ extension ChatControllerImpl {
                             completion(controller, controller.mediaPickerContext)
                             strongSelf.controllerNavigationDisposable.set(nil)
                         })
+                        return true
+                    case .urgramTemplates:
+                        // URGRAM (build 20): the template picker is a plain
+                        // ItemListController (not an AttachmentContainable), so
+                        // it is presented as a modal over the chat after the
+                        // attachment menu dismisses; the chosen text is then
+                        // inserted into the input field at the cursor.
+                        strongSelf.controllerNavigationDisposable.set(nil)
+                        guard !UrgramSettingsStore.shared.current.replyTemplates.isEmpty else {
+                            return false
+                        }
+                        strongSelf.attachmentController?.dismiss(animated: true)
+                        let pickerController = urgramTemplatePickerController(context: strongSelf.context, completion: { [weak strongSelf] text in
+                            guard let strongSelf else {
+                                return
+                            }
+                            strongSelf.interfaceInteraction?.updateTextInputStateAndMode { current, inputMode in
+                                let inputText = current.inputText
+                                let selection = current.selectionRange
+                                let location = min(max(selection.lowerBound, 0), inputText.length)
+                                let length = min(selection.count, inputText.length - location)
+                                let mutableText = NSMutableAttributedString(attributedString: inputText)
+                                mutableText.replaceCharacters(in: NSRange(location: location, length: length), with: text)
+                                let cursor = location + (text as NSString).length
+                                return (ChatTextInputState(inputText: mutableText, selectionRange: cursor ..< cursor), inputMode)
+                            }
+                        })
+                        strongSelf.present(pickerController, in: .window(.root))
                         return true
                     case .richText:
                         let buildRichTextContent: (ChatControllerImpl, RichTextAttachmentScreen.Document, [String: EngineMedia], [Int64: TelegramMediaFile], Bool) -> (text: String, attributes: [EngineMessage.Attribute])? = { strongSelf, document, media, emojiFiles, sendWithoutFormatting in

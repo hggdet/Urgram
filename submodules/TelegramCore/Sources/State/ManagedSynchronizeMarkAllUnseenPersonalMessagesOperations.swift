@@ -117,6 +117,12 @@ private enum GetUnseenIdsError {
 }
 
 private func synchronizeMarkAllUnseen(transaction: Transaction, postbox: Postbox, network: Network, stateManager: AccountStateManager, peerId: PeerId, operation: SynchronizeMarkAllUnseenPersonalMessagesOperation) -> Signal<Void, NoError> {
+    // URGRAM (item 1, ghost mode): this operation sends readMessageContents
+    // for unseen personal messages (mentions) automatically when a chat is
+    // viewed — suppress it like the other contents-read paths.
+    if UrgramFeatureHooks.ghostHideRead {
+        return .complete()
+    }
     guard let inputPeer = transaction.getPeer(peerId).flatMap(apiInputPeer) else {
         return .complete()
     }

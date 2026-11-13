@@ -6,6 +6,7 @@ import Display
 import UIKit
 import SwiftSignalKit
 import MobileCoreServices
+import UserNotifications
 import TelegramVoip
 import OverlayStatusController
 import AccountContext
@@ -488,6 +489,31 @@ private func ephemeralReplacementContextMenuItems(chatPresentationInterfaceState
 
         return ContextController.Items(content: .list(actions))
     }
+}
+
+// URGRAM (build 20, Clean Edition): schedule a local "remind me" notification
+// for a message. The userInfo deliberately uses the exact keys AppDelegate's
+// stock notification-tap handler parses — "accountId"/"peerId" as Int64
+// (peerId packed via PeerId.toInt64()), "messageId.namespace"/"messageId.id"
+// as Int32, and categoryIdentifier "c" (the category the handler requires
+// before it extracts a messageId) — so tapping the reminder opens the chat
+// at the message through the unmodified openChatWhenReady path.
+private func urgramScheduleMessageReminder(context: AccountContext, messageId: MessageId, snippet: String, fireDate: Date, isArabic: Bool) {
+    let content = UNMutableNotificationContent()
+    content.title = isArabic ? "تذكير" : "Reminder"
+    content.body = snippet.isEmpty ? (isArabic ? "رسالة أردت الرجوع إليها" : "A message you wanted to revisit") : snippet
+    content.sound = .default
+    content.categoryIdentifier = "c"
+    content.userInfo = [
+        "accountId": context.account.id.rawValue,
+        "peerId": messageId.peerId.toInt64(),
+        "messageId.namespace": messageId.namespace,
+        "messageId.id": messageId.id
+    ]
+    let trigger = UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate), repeats: false)
+    let identifier = "urgram-reminder-\(messageId.peerId.toInt64())-\(messageId.id)-\(Int64(fireDate.timeIntervalSince1970))"
+    UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
 }
 
 func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState: ChatPresentationInterfaceState, context: AccountContext, messages: [EngineRawMessage], controllerInteraction: ChatControllerInteraction?, selectAll: Bool, interfaceInteraction: ChatPanelInterfaceInteraction?, readStats: MessageReadStats? = nil, messageNode: ChatMessageItemView? = nil) -> Signal<ContextController.Items, NoError> {
@@ -1498,6 +1524,34 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                     }.startStandalone()
                     f(.default)
                 })))
+
+                // URGRAM (build 20, Clean Edition): remind me about this
+                // message later — a local notification that deep-links back
+                // to it (see urgramScheduleMessageReminder). Secret chats are
+                // excluded: their peer ids must not leave the chat.
+                if message.id.peerId.namespace != Namespaces.Peer.SecretChat {
+                    actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.primaryComponent.languageCode.hasPrefix("ar") ? "ذكّرني" : "Remind Me", icon: { _ in
+                        return nil
+                    }, action: { _, f in
+                        f(.default)
+                        let strings = chatPresentationInterfaceState.strings
+                        let isArabic = strings.primaryComponent.languageCode.hasPrefix("ar")
+                        let snippet = String(messageText.prefix(140))
+                        let now = Date()
+                        let makeAction: (String, TimeInterval) -> TextAlertAction = { title, delay in
+                            return TextAlertAction(type: .genericAction, title: title, action: {
+                                urgramScheduleMessageReminder(context: context, messageId: message.id, snippet: snippet, fireDate: now.addingTimeInterval(delay), isArabic: isArabic)
+                            })
+                        }
+                        let alert = textAlertController(context: context, title: isArabic ? "ذكّرني بهذه الرسالة" : "Remind Me About This Message", text: snippet, actions: [
+                            makeAction(isArabic ? "بعد ساعة" : "In 1 Hour", 3600),
+                            makeAction(isArabic ? "غدًا" : "Tomorrow", 24 * 3600),
+                            makeAction(isArabic ? "بعد أسبوع" : "Next Week", 7 * 24 * 3600),
+                            TextAlertAction(type: .defaultAction, title: strings.Common_Cancel, action: {})
+                        ], actionLayout: .vertical)
+                        context.sharedContext.mainWindow?.present(alert, on: .root)
+                    })))
+                }
 
                 if isSpeakSelectionEnabled() && !messageText.isEmpty {
                     actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuSpeak, icon: { theme in

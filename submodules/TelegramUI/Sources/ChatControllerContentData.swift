@@ -973,6 +973,14 @@ extension ChatControllerImpl {
                         } else {
                             copyProtectionEnabled = peer.isCopyProtectionEnabled
                         }
+                        // URGRAM (item 2): the chat-level flag gates save /
+                        // forward / copy together with the per-message flag
+                        // dropped in StoreMessage_Telegram — clear it too, or
+                        // restricted chats stay locked despite the toggle.
+                        if UrgramFeatureHooks.saveRestrictedBypass {
+                            copyProtectionEnabled = false
+                            myCopyProtectionEnabled = false
+                        }
                         if let cachedGroupData = peerView.cachedData as? CachedGroupData {
                             if !cachedGroupData.botInfos.isEmpty {
                                 hasBots = true
@@ -1478,6 +1486,11 @@ extension ChatControllerImpl {
                     var isManagedBot = false
                     if let peer = peerView.peers[peerView.peerId] {
                         copyProtectionEnabled = peer.isCopyProtectionEnabled
+                        // URGRAM (item 2): see the note at the other
+                        // copyProtectionEnabled computation above.
+                        if UrgramFeatureHooks.saveRestrictedBypass {
+                            copyProtectionEnabled = false
+                        }
                         if let cachedData = peerView.cachedData as? CachedUserData {
                             isManagedBot = cachedData.botManagerId != nil
                             gramAddress = cachedData.gramAddress

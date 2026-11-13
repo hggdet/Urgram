@@ -1607,7 +1607,9 @@ func openResolvedUrlImpl(
                 }
             }
             |> deliverOnMainQueue).startStandalone(next: { [navigationController] exists in
-                if exists {
+                // URGRAM (item 20, hard disable): story deep links build
+                // StoryContainerScreen directly — gate here too.
+                if exists, !UrgramFeatureHooks.disableStories {
                     let storyContent = SingleStoryContentContextImpl(context: context, storyId: EngineStoryId(peerId: peerId, id: id), readGlobally: true)
                     let _ = (storyContent.state
                     |> take(1)
