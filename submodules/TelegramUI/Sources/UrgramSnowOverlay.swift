@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import CoreMotion
 import TelegramUIPreferences
 
 // URGRAM (ambience — snow): a gentle falling-snow layer over the whole app
@@ -81,6 +82,16 @@ final class UrgramSnowView: UIView {
     private var growthTimer: Timer?
     private var isEmissionPaused = false
 
+    // URGRAM (snow, tilt-reactive): CoreMotion gravity steers the fall.
+    // The cells are kept as references — mutating a live emitter cell's
+    // xAcceleration is the standard way to steer an emitter without
+    // restarting it; if a system version ever ignored the mutation, the
+    // snow would simply keep falling straight down.
+    private var smallCell: CAEmitterCell?
+    private var largeCell: CAEmitterCell?
+    private let motionManager = CMMotionManager()
+    private var smoothedTiltAcceleration: CGFloat = 0.0
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         self.isUserInteractionEnabled = false
@@ -108,6 +119,7 @@ final class UrgramSnowView: UIView {
     deinit {
         NotificationCenter.default.removeObserver(self)
         self.growthTimer?.invalidate()
+        self.motionManager.stopDeviceMotionUpdates()
     }
 
     @objc private func applicationDidEnterBackground() {
@@ -115,12 +127,36 @@ final class UrgramSnowView: UIView {
         self.emitterLayer.speed = 0.0
         self.growthTimer?.invalidate()
         self.growthTimer = nil
+        self.motionManager.stopDeviceMotionUpdates()
     }
 
     @objc private func applicationWillEnterForeground() {
         self.isEmissionPaused = false
         self.emitterLayer.speed = 1.0
         self.startGrowthTimerIfNeeded()
+        self.startMotionUpdates()
+    }
+
+    // URGRAM (snow, tilt-reactive): gravity.x in device coordinates is 0
+    // when the phone is upright and ∓sin(tilt) as the top leans sideways;
+    // negated and scaled it becomes the flakes' sideways acceleration
+    // toward the lower side. The value is clamped and exponential-smoothed
+    // so the drift feels like wind, not jitter. Accumulation caps stay
+    // full-width — tilt steers the fall, not the caps.
+    private func startMotionUpdates() {
+        guard self.smallCell != nil, self.motionManager.isDeviceMotionAvailable, !self.motionManager.isDeviceMotionActive else {
+            return
+        }
+        self.motionManager.deviceMotionUpdateInterval = 0.15
+        self.motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
+            guard let self = self, let gravity = motion?.gravity else {
+                return
+            }
+            let target = CGFloat(max(-120.0, min(120.0, -gravity.x * 120.0)))
+            self.smoothedTiltAcceleration += (target - self.smoothedTiltAcceleration) * 0.35
+            self.smallCell?.xAcceleration = Float(self.smoothedTiltAcceleration)
+            self.largeCell?.xAcceleration = Float(self.smoothedTiltAcceleration * 0.7)
+        }
     }
 
     func configure(intensity: Int) {
@@ -181,8 +217,11 @@ final class UrgramSnowView: UIView {
         smallCell.yAcceleration = 6.0
         largeCell.yAcceleration = 6.0
 
+        self.smallCell = smallCell
+        self.largeCell = largeCell
         self.emitterLayer.emitterCells = [smallCell, largeCell]
         self.startGrowthTimerIfNeeded()
+        self.startMotionUpdates()
     }
 
     private var growthFullDuration: CGFloat {
