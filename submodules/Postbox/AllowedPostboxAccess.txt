@@ -98,6 +98,8 @@ submodules/SettingsUI/Sources/Text Size/TextSizeSelectionController.swift
 submodules/SettingsUI/Sources/ThemePickerGridItem.swift
 submodules/SettingsUI/Sources/Themes/ThemePreviewControllerNode.swift
 submodules/SettingsUI/Sources/Themes/ThemeSettingsController.swift
+submodules/SettingsUI/Sources/UrgramArchiveController.swift
+submodules/SettingsUI/Sources/UrgramBookmarksController.swift
 submodules/ShareController/Sources/ShareController.swift
 submodules/ShareController/Sources/ShareControllerNode.swift
 submodules/ShareController/Sources/SharePeersContainerNode.swift
@@ -212,6 +214,7 @@ submodules/TelegramUI/Sources/ChatControllerContentData.swift
 submodules/TelegramUI/Sources/ChatControllerNode.swift
 submodules/TelegramUI/Sources/ChatControllerOpenMessageShareMenu.swift
 submodules/TelegramUI/Sources/ChatHistoryListNode.swift
+submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift
 submodules/TelegramUI/Sources/ChatPinnedMessageTitlePanelNode.swift
 submodules/TelegramUI/Sources/CreateGroupController.swift
 submodules/TelegramUI/Sources/CreatePeerAvatarSetup.swift
