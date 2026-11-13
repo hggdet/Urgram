@@ -13,6 +13,17 @@ import AccountContext
 // (placement rule: every feature control lives here, never scattered through
 // Telegram's own settings). Modelled on ArchiveSettingsController.
 
+// URGRAM: fork UI strings are bilingual — Telegram's generated string
+// tables carry no fork keys, so Urgram screens pick Arabic when the app
+// language is Arabic and English otherwise.
+func urgramIsArabicLanguage(_ presentationData: ItemListPresentationData) -> Bool {
+    return presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
+}
+
+func urgramText(_ presentationData: ItemListPresentationData, _ en: String, _ ar: String) -> String {
+    return urgramIsArabicLanguage(presentationData) ? ar : en
+}
+
 private final class UrgramSettingsControllerArguments {
     let update: (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void
     let openFonts: () -> Void
@@ -184,100 +195,100 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
         let arguments = arguments as! UrgramSettingsControllerArguments
         switch self {
         case .ghostHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Ghost Mode", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Ghost Mode", "وضع الشبح"), sectionId: self.section)
         case let .ghostHideRead(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Hide Read Receipts", value: value, keyPath: \.ghostHideRead)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Read Receipts", "إخفاء علامات القراءة"), value: value, keyPath: \.ghostHideRead)
         case let .ghostHideTyping(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Hide Typing", value: value, keyPath: \.ghostHideTyping)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Typing", "إخفاء مؤشر الكتابة"), value: value, keyPath: \.ghostHideTyping)
         case let .ghostHideOnline(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Hide Online Status", value: value, keyPath: \.ghostHideOnline)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Online Status", "إخفاء حالة الاتصال"), value: value, keyPath: \.ghostHideOnline)
         case let .ghostHideStoryViews(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Hide Story Views", value: value, keyPath: \.ghostHideStoryViews)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Story Views", "إخفاء مشاهدات القصص"), value: value, keyPath: \.ghostHideStoryViews)
         case .ghostFooter:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("With Ghost Mode on, other people won't see when you read, type, come online or watch stories. Your chats still update normally on this device."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "With Ghost Mode on, other people won't see when you read, type, come online or watch stories. Your chats still update normally on this device.", "عند تفعيل وضع الشبح، لن يرى الآخرون متى تقرأ أو تكتب أو تتصل أو تشاهد القصص. محادثاتك تُحدَّث بشكل طبيعي على هذا الجهاز.")), sectionId: self.section)
         case .privacyHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Privacy", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Privacy", "الخصوصية"), sectionId: self.section)
         case let .streamerMode(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Streamer Mode", value: value, keyPath: \.streamerMode)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Streamer Mode", "وضع البث"), value: value, keyPath: \.streamerMode)
         case let .secretChatScreenshotSilent(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Secret Chat Screenshots Without Notification", value: value, keyPath: \.secretChatScreenshotSilent)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Secret Chat Screenshots Without Notification", "لقطات المحادثة السرية بدون إشعار"), value: value, keyPath: \.secretChatScreenshotSilent)
         case let .hidePhoneInProfile(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Hide Phone Number in My Profile", value: value, keyPath: \.hidePhoneInProfile)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Phone Number in My Profile", "إخفاء رقم هاتفي في ملفي الشخصي"), value: value, keyPath: \.hidePhoneInProfile)
         case .contentHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Content", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Content", "المحتوى"), sectionId: self.section)
         case let .saveRestrictedBypass(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Save Restricted Content", value: value, keyPath: \.saveRestrictedBypass)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Save Restricted Content", "حفظ المحتوى المقيد"), value: value, keyPath: \.saveRestrictedBypass)
         case let .keepDeletedMessages(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Keep Deleted Messages", value: value, keyPath: \.keepDeletedMessages)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Keep Deleted Messages", "الاحتفاظ بالرسائل المحذوفة"), value: value, keyPath: \.keepDeletedMessages)
         case let .keepEditedMessages(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Keep Original Text of Edited Messages", value: value, keyPath: \.keepEditedMessages)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Keep Original Text of Edited Messages", "الاحتفاظ بالنص الأصلي للرسائل المعدّلة"), value: value, keyPath: \.keepEditedMessages)
         case let .hideSponsored(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Hide Sponsored Messages", value: value, keyPath: \.hideSponsored)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Sponsored Messages", "إخفاء الرسائل المموّلة"), value: value, keyPath: \.hideSponsored)
         case let .keywordFiltersEnabled(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Keyword Filters", value: value, keyPath: \.keywordFiltersEnabled)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Keyword Filters", "فلاتر الكلمات"), value: value, keyPath: \.keywordFiltersEnabled)
         case .contentFooter:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Deleted messages are archived only on this device. A viewer for the archive is not included yet."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Deleted messages are archived only on this device. A viewer for the archive is not included yet.", "تُحفظ الرسائل المحذوفة على هذا الجهاز فقط. عارض الأرشيف غير مضمّن بعد.")), sectionId: self.section)
         case .chatsHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Chats", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Chats", "المحادثات"), sectionId: self.section)
         case let .sendWithEnter(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Send With Enter", value: value, keyPath: \.sendWithEnter)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Send With Enter", "الإرسال بزر الإدخال"), value: value, keyPath: \.sendWithEnter)
         case let .hideStoriesBar(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Hide Stories Bar", value: value, keyPath: \.hideStoriesBar)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Stories Bar", "إخفاء شريط القصص"), value: value, keyPath: \.hideStoriesBar)
         case let .disableStories(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Disable Stories", value: value, keyPath: \.disableStories)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Disable Stories", "تعطيل القصص"), value: value, keyPath: \.disableStories)
         case let .foldersAtBottom(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Folders at Bottom", value: value, keyPath: \.foldersAtBottom)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Folders at Bottom", "المجلدات في الأسفل"), value: value, keyPath: \.foldersAtBottom)
         case let .doubleTapEditOwnMessages(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Double-Tap to Edit My Messages", value: value, keyPath: \.doubleTapEditOwnMessages)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Double-Tap to Edit My Messages", "الضغط مرتين لتعديل رسائلي"), value: value, keyPath: \.doubleTapEditOwnMessages)
         case let .mentionAll(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Mention All (@all)", value: value, keyPath: \.mentionAll)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Mention All (@all)", "منشن الجميع (@all)"), value: value, keyPath: \.mentionAll)
         case let .autoReplyEnabled(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Auto-Reply", value: value, keyPath: \.autoReplyEnabled)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Auto-Reply", "الرد التلقائي"), value: value, keyPath: \.autoReplyEnabled)
         case .chatsFooter:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Some chat options take effect the next time the chat is opened."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Some chat options take effect the next time the chat is opened.", "بعض خيارات المحادثة تسري عند فتح المحادثة في المرة القادمة.")), sectionId: self.section)
         case .mediaHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Media and Downloads", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Media and Downloads", "الوسائط والتنزيلات"), sectionId: self.section)
         case let .defaultHDPhotos(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Send Photos in HD by Default", value: value, keyPath: \.defaultHDPhotos)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Send Photos in HD by Default", "إرسال الصور بجودة HD افتراضيًا"), value: value, keyPath: \.defaultHDPhotos)
         case let .downloadBoost(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Download Boost", value: value, keyPath: \.downloadBoost)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Download Boost", "تسريع التنزيل"), value: value, keyPath: \.downloadBoost)
         case let .voiceNoiseSuppression(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Voice Message Noise Suppression", value: value, keyPath: \.voiceNoiseSuppression)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Voice Message Noise Suppression", "كتم ضوضاء الرسائل الصوتية"), value: value, keyPath: \.voiceNoiseSuppression)
         case .callsHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Calls", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Calls", "المكالمات"), sectionId: self.section)
         case let .callConfirmation(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Confirm Before Calling", value: value, keyPath: \.callConfirmation)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Confirm Before Calling", "التأكيد قبل الاتصال"), value: value, keyPath: \.callConfirmation)
         case let .forceTcpCalls(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Force TCP for Calls", value: value, keyPath: \.forceTcpCalls)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Force TCP for Calls", "فرض TCP للمكالمات"), value: value, keyPath: \.forceTcpCalls)
         case .translationHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Translation", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Translation", "الترجمة"), sectionId: self.section)
         case let .translateChats(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Translate Whole Chats", value: value, keyPath: \.translateChats)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Translate Whole Chats", "ترجمة المحادثات كاملة"), value: value, keyPath: \.translateChats)
         case let .translateOutgoingLongPress(value):
-            return self.switchItem(presentationData: presentationData, arguments: arguments, title: "Long-Press Send to Translate", value: value, keyPath: \.translateOutgoingLongPress)
+            return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Long-Press Send to Translate", "الضغط المطوّل على الإرسال للترجمة"), value: value, keyPath: \.translateOutgoingLongPress)
         case .fontHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Font", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Font", "الخط"), sectionId: self.section)
         case let .fontChoice(label):
-            return ItemListDisclosureItem(presentationData: presentationData, title: "App Font", label: label, sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "App Font", "خط التطبيق"), label: label, sectionId: self.section, style: .blocks, action: {
                 arguments.openFonts()
             })
         case .proxyHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Network", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Network", "الشبكة"), sectionId: self.section)
         case .proxies:
-            return ItemListDisclosureItem(presentationData: presentationData, title: "Proxies", label: "", sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Proxies", "البروكسيات"), label: "", sectionId: self.section, style: .blocks, action: {
                 arguments.openProxies()
             })
         case .actionsHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Actions", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Actions", "إجراءات"), sectionId: self.section)
         case .markAllRead:
-            return ItemListActionItem(presentationData: presentationData, title: "Mark All Chats as Read", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+            return ItemListActionItem(presentationData: presentationData, title: urgramText(presentationData, "Mark All Chats as Read", "تعليم كل المحادثات كمقروءة"), kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.markAllChatsAsRead()
             })
         }
     }
 }
 
-private func urgramSettingsControllerEntries(settings: UrgramSettings) -> [UrgramSettingsControllerEntry] {
+private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic: Bool) -> [UrgramSettingsControllerEntry] {
     var entries: [UrgramSettingsControllerEntry] = []
 
     entries.append(.ghostHeader)
@@ -324,7 +335,7 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings) -> [Urgra
     entries.append(.translateOutgoingLongPress(settings.translateOutgoingLongPress))
 
     entries.append(.fontHeader)
-    entries.append(.fontChoice(urgramFontChoiceLabel(settings)))
+    entries.append(.fontChoice(urgramFontChoiceLabel(settings, isArabic: isArabic)))
 
     entries.append(.proxyHeader)
     entries.append(.proxies)
@@ -335,8 +346,9 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings) -> [Urgra
     return entries
 }
 
-// URGRAM
-func urgramFontChoiceLabel(_ settings: UrgramSettings) -> String {
+// URGRAM (font family names stay in Latin as proper names; only the
+// System/Custom labels follow the app language.)
+func urgramFontChoiceLabel(_ settings: UrgramSettings, isArabic: Bool) -> String {
     switch settings.fontChoice {
     case "tajawal":
         return "Tajawal"
@@ -345,9 +357,9 @@ func urgramFontChoiceLabel(_ settings: UrgramSettings) -> String {
     case "plexArabic":
         return "IBM Plex Sans Arabic"
     case "custom":
-        return settings.customFontName ?? "Custom"
+        return settings.customFontName ?? (isArabic ? "مخصص" : "Custom")
     default:
-        return "System"
+        return isArabic ? "النظام" : "System"
     }
 }
 
@@ -407,7 +419,7 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
         presentationData = presentationData.withUpdated(theme: updatedTheme)
 
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("Urgram"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: urgramSettingsControllerEntries(settings: settings), style: .blocks, animateChanges: true)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: urgramSettingsControllerEntries(settings: settings, isArabic: presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")), style: .blocks, animateChanges: true)
 
         return (controllerState, (listState, arguments))
     }

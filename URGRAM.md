@@ -256,6 +256,19 @@ check. Per-item status below is exact: **implemented** / **partial** /
   (default no-op, so preview/other controllers keep compiling) and wired
   it in `ChatController` to `interfaceInteraction?.setupEditMessage(...)`.
   The bubble-node call site is unchanged.
+  **Build 13 fix:** Swift requires call-site argument order to match the
+  init declaration — the closure had to sit after
+  `toggleMessageRichTextCheckbox` in `ChatController` too.
+  **Build 15 (2026-11-13) — Arabic UI + font-import picker fix.** On-device
+  verdict for build 14: features work, but (a) the whole Urgram section
+  was English-only and (b) font import showed files greyed out. Fixes:
+  all Urgram screens (settings, font, proxies incl. the import alert) are
+  now bilingual via `urgramText(...)` in UrgramSettingsController.swift —
+  Arabic when the app language is Arabic, English otherwise (Telegram's
+  generated string tables carry no fork keys; font family names stay
+  Latin). The font picker no longer filters by ttf/otf UTTypes (a
+  sideloaded app declares none, so iOS 27 greys the files out); it opens
+  all files and `UrgramFontManager.importFont` validates the pick.
 - **28 Auto-delete — covered by upstream.** Per-chat autoremove timers and
   a global auto-delete (Privacy → Auto-Delete Messages) already exist in
   13.2. Delete-all-my-messages: see item 24.

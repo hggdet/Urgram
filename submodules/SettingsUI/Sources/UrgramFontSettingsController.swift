@@ -71,9 +71,9 @@ private enum UrgramFontSettingsControllerEntry: ItemListNodeEntry {
         let arguments = arguments as! UrgramFontSettingsControllerArguments
         switch self {
         case .header:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "App Font", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "App Font", "خط التطبيق"), sectionId: self.section)
         case let .system(checked):
-            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: "System", style: .left, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
+            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "System", "النظام"), style: .left, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
                 arguments.selectChoice("system")
             })
         case let .builtIn(id, title, checked):
@@ -81,17 +81,17 @@ private enum UrgramFontSettingsControllerEntry: ItemListNodeEntry {
                 arguments.selectChoice(id)
             })
         case .customHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Your Font", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Your Font", "خطك"), sectionId: self.section)
         case let .custom(name, checked):
-            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: name ?? "Custom Font", style: .left, checked: checked, enabled: name != nil, zeroSeparatorInsets: false, sectionId: self.section, action: {
+            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: name ?? urgramText(presentationData, "Custom Font", "خط مخصص"), style: .left, checked: checked, enabled: name != nil, zeroSeparatorInsets: false, sectionId: self.section, action: {
                 arguments.selectChoice("custom")
             })
         case .importAction:
-            return ItemListActionItem(presentationData: presentationData, title: "Import Font File (.ttf / .otf)", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+            return ItemListActionItem(presentationData: presentationData, title: urgramText(presentationData, "Import Font File (.ttf / .otf)", "استيراد ملف خط (.ttf / .otf)"), kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.importFont()
             })
         case .footer:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("The font applies to screens opened after the change; restart the app to apply it everywhere. Built-in fonts are open-source (SIL Open Font License)."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "The font applies to screens opened after the change; restart the app to apply it everywhere. Built-in fonts are open-source (SIL Open Font License).", "يسري الخط على الشاشات التي تُفتح بعد التغيير؛ أعد تشغيل التطبيق لتطبيقه في كل مكان. الخطوط المدمجة مفتوحة المصدر (رخصة SIL للخطوط المفتوحة).")), sectionId: self.section)
         }
     }
 }
@@ -157,7 +157,7 @@ public func urgramFontSettingsController(context: AccountContext) -> ViewControl
         let updatedTheme = presentationData.theme.withModalBlocksBackground()
         presentationData = presentationData.withUpdated(theme: updatedTheme)
 
-        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("App Font"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
+        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(presentationData.strings.primaryComponent.languageCode.hasPrefix("ar") ? "خط التطبيق" : "App Font"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: urgramFontSettingsControllerEntries(settings: settings), style: .blocks, animateChanges: true)
 
         return (controllerState, (listState, arguments))
@@ -168,8 +168,13 @@ public func urgramFontSettingsController(context: AccountContext) -> ViewControl
         guard let controller = controller else {
             return
         }
-        let contentTypes: [UTType] = [UTType(filenameExtension: "ttf"), UTType(filenameExtension: "otf"), .font].compactMap { $0 }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes.isEmpty ? [.data] : contentTypes)
+        // URGRAM (fix, build 15): do NOT filter by UTType(filenameExtension:)
+        // or .font — a sideloaded app declares no document/UTI types for
+        // ttf/otf, so on iOS 27 the Files UI shows font files greyed out and
+        // unselectable (reported on device). Open all files instead and let
+        // UrgramFontManager.importFont validate the pick (it parses the
+        // font's names and returns nil for anything that is not a font).
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data])
         let delegate = UrgramFontPickerDelegate(completion: { url in
             guard let url = url, let imported = UrgramFontManager.importFont(from: url) else {
                 return

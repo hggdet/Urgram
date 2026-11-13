@@ -57,19 +57,19 @@ private enum UrgramProxySettingsControllerEntry: ItemListNodeEntry {
         let arguments = arguments as! UrgramProxySettingsControllerArguments
         switch self {
         case .header:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "Proxies", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Proxies", "البروكسيات"), sectionId: self.section)
         case let .count(count):
-            return ItemListTextItem(presentationData: presentationData, text: .plain(count == 0 ? "No proxy servers saved yet." : "\(count) proxy server(s) saved."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain(count == 0 ? urgramText(presentationData, "No proxy servers saved yet.", "لا توجد خوادم بروكسي محفوظة بعد.") : urgramText(presentationData, "\(count) proxy server(s) saved.", "تم حفظ \(count) خادم بروكسي.")), sectionId: self.section)
         case .importAction:
-            return ItemListActionItem(presentationData: presentationData, title: "Import Proxies from Links", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+            return ItemListActionItem(presentationData: presentationData, title: urgramText(presentationData, "Import Proxies from Links", "استيراد البروكسيات من الروابط"), kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.importProxies()
             })
         case .systemAction:
-            return ItemListDisclosureItem(presentationData: presentationData, title: "All Proxy Settings", label: "", sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "All Proxy Settings", "كل إعدادات البروكسي"), label: "", sectionId: self.section, style: .blocks, action: {
                 arguments.openSystemProxySettings()
             })
         case .footer:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Paste one or more t.me/proxy links (or tg://proxy links), one per line. Servers are added to Telegram's proxy list, where each server's live status and ping are shown. Find fresh public proxies in channels that publish them, then import them here in bulk."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Paste one or more t.me/proxy links (or tg://proxy links), one per line. Servers are added to Telegram's proxy list, where each server's live status and ping are shown. Find fresh public proxies in channels that publish them, then import them here in bulk.", "الصق رابطًا أو أكثر من روابط t.me/proxy (أو tg://proxy)، رابطًا في كل سطر. تُضاف الخوادم إلى قائمة بروكسي تليجرام، حيث تظهر حالة كل خادم وسرعته مباشرة. ابحث عن بروكسيات عامة جديدة في القنوات التي تنشرها، ثم استوردها هنا دفعة واحدة.")), sectionId: self.section)
         }
     }
 }
@@ -133,6 +133,9 @@ func urgramParseProxyLink(_ link: String) -> ProxyServerSettings? {
 public func urgramProxySettingsController(context: AccountContext) -> ViewController {
     var presentImportImpl: (() -> Void)?
     var pushImpl: ((ViewController) -> Void)?
+    // URGRAM: kept current by the state map below so the import alert can
+    // follow the app language too.
+    var currentIsArabic = false
 
     let arguments = UrgramProxySettingsControllerArguments(
         importProxies: {
@@ -151,6 +154,7 @@ public func urgramProxySettingsController(context: AccountContext) -> ViewContro
     |> deliverOnMainQueue
     |> map { presentationData, sharedData -> (ItemListControllerState, (ItemListNodeState, Any)) in
         var presentationData = presentationData
+        currentIsArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
         let updatedTheme = presentationData.theme.withModalBlocksBackground()
         presentationData = presentationData.withUpdated(theme: updatedTheme)
 
@@ -162,7 +166,7 @@ public func urgramProxySettingsController(context: AccountContext) -> ViewContro
         entries.append(.systemAction)
         entries.append(.footer)
 
-        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("Proxies"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
+        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(presentationData.strings.primaryComponent.languageCode.hasPrefix("ar") ? "البروكسيات" : "Proxies"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, animateChanges: true)
 
         return (controllerState, (listState, arguments))
@@ -176,14 +180,14 @@ public func urgramProxySettingsController(context: AccountContext) -> ViewContro
         guard let controller = controller else {
             return
         }
-        let alert = UIAlertController(title: "Import Proxies", message: "Paste proxy links, one per line.", preferredStyle: .alert)
+        let alert = UIAlertController(title: currentIsArabic ? "استيراد البروكسيات" : "Import Proxies", message: currentIsArabic ? "الصق روابط البروكسي، رابطًا في كل سطر." : "Paste proxy links, one per line.", preferredStyle: .alert)
         alert.addTextField { textField in
             textField.placeholder = "https://t.me/proxy?server=...&port=...&secret=..."
             textField.autocapitalizationType = .none
             textField.autocorrectionType = .no
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Import", style: .default, handler: { _ in
+        alert.addAction(UIAlertAction(title: currentIsArabic ? "إلغاء" : "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: currentIsArabic ? "استيراد" : "Import", style: .default, handler: { _ in
             guard let text = alert.textFields?.first?.text, !text.isEmpty else {
                 return
             }
