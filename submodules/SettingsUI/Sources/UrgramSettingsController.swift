@@ -417,8 +417,8 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
     entries.append(.disableStories(settings.disableStories))
     if !isClean {
         entries.append(.foldersAtBottom(settings.foldersAtBottom))
-        entries.append(.mentionAll(settings.mentionAll))
     }
+    entries.append(.mentionAll(settings.mentionAll))
     entries.append(.autoReplyEnabled(settings.autoReplyEnabled))
     entries.append(.autoReplyTemplate(settings.autoReplyText))
     entries.append(.doubleTapEditOwnMessages(settings.doubleTapEditOwnMessages))

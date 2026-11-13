@@ -48,6 +48,58 @@ import ChatMediaEditorScreen
 import ChatMediaSend
 import BrowserUI
 
+// URGRAM (@all): retains an in-flight mention-all fetch.
+private final class UrgramMentionAllSession {
+    static var active: UrgramMentionAllSession?
+    let disposable = MetaDisposable()
+}
+
+// URGRAM (@all): fetches the supergroup's participants through the
+// engine's channel-members API and inserts a mention for each of them
+// (excluding yourself, capped at 50) into the chat input at the cursor.
+// Mentions use the exact encoding Telegram's own mention picker inserts —
+// the peer's display title carrying a ChatTextInputTextMentionAttribute —
+// so the send path converts them into real mention entities. Legacy
+// (basic) groups expose no participants list through the engine API, so
+// the button is only offered in supergroups.
+private func urgramInsertMentionAll(context: AccountContext, peerId: PeerId, interfaceInteraction: ChatPanelInterfaceInteraction?) {
+    let session = UrgramMentionAllSession()
+    UrgramMentionAllSession.active = session
+
+    let signal = context.engine.peers.channelMembers(peerId: peerId, category: .recent(.all), offset: 0, limit: 64, hash: 0)
+    |> deliverOnMainQueue
+
+    session.disposable.set(signal.start(next: { participants in
+        UrgramMentionAllSession.active = nil
+        guard let participants = participants else {
+            return
+        }
+        let peers = participants.map { $0.peer }.filter { $0.id != context.account.peerId }
+        guard !peers.isEmpty else {
+            return
+        }
+        let mentionText = NSMutableAttributedString()
+        for peer in Array(peers.prefix(50)) {
+            if mentionText.length > 0 {
+                mentionText.append(NSAttributedString(string: " "))
+            }
+            mentionText.append(NSAttributedString(string: peer.compactDisplayTitle, attributes: [ChatTextInputAttributes.textMention: ChatTextInputTextMentionAttribute(peerId: peer.id)]))
+        }
+        mentionText.append(NSAttributedString(string: " "))
+
+        interfaceInteraction?.updateTextInputStateAndMode { current, inputMode in
+            let inputText = current.inputText
+            let selection = current.selectionRange
+            let location = min(max(selection.lowerBound, 0), inputText.length)
+            let length = min(selection.count, inputText.length - location)
+            let mutableText = NSMutableAttributedString(attributedString: inputText)
+            mutableText.replaceCharacters(in: NSRange(location: location, length: length), with: mentionText)
+            let cursor = location + mentionText.length
+            return (ChatTextInputState(inputText: mutableText, selectionRange: cursor ..< cursor), inputMode)
+        }
+    }))
+}
+
 extension ChatControllerImpl {
     enum AttachMenuSubject {
         case `default`
@@ -375,6 +427,21 @@ extension ChatControllerImpl {
                             allButtons.insert(.urgramTemplates, at: index + 1)
                         } else {
                             allButtons.append(.urgramTemplates)
+                        }
+                    }
+
+                    // URGRAM (@all): in supergroups, a mention-all button
+                    // when the user enabled it in the Urgram section.
+                    if UrgramSettingsStore.shared.current.mentionAll, let channel = peer as? TelegramChannel, case .group = channel.info {
+                        if let index = buttons.firstIndex(where: { $0 == .location }) {
+                            buttons.insert(.urgramMentionAll, at: index + 1)
+                        } else {
+                            buttons.append(.urgramMentionAll)
+                        }
+                        if let index = allButtons.firstIndex(where: { $0 == .location }) {
+                            allButtons.insert(.urgramMentionAll, at: index + 1)
+                        } else {
+                            allButtons.append(.urgramMentionAll)
                         }
                     }
 
@@ -1123,6 +1190,16 @@ extension ChatControllerImpl {
                             }
                         })
                         strongSelf.present(pickerController, in: .window(.root))
+                        return true
+                    case .urgramMentionAll:
+                        // URGRAM (@all): fetch the supergroup's participants
+                        // and insert real mention entities into the input.
+                        strongSelf.controllerNavigationDisposable.set(nil)
+                        guard UrgramSettingsStore.shared.current.mentionAll, let peerId = strongSelf.chatLocation.peerId else {
+                            return false
+                        }
+                        strongSelf.attachmentController?.dismiss(animated: true)
+                        urgramInsertMentionAll(context: strongSelf.context, peerId: peerId, interfaceInteraction: strongSelf.interfaceInteraction)
                         return true
                     case .richText:
                         let buildRichTextContent: (ChatControllerImpl, RichTextAttachmentScreen.Document, [String: EngineMedia], [Int64: TelegramMediaFile], Bool) -> (text: String, attributes: [EngineMessage.Attribute])? = { strongSelf, document, media, emojiFiles, sendWithoutFormatting in

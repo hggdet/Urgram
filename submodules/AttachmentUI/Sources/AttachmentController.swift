@@ -29,6 +29,8 @@ public enum AttachmentButtonType: Equatable {
     case quickReply
     // URGRAM (build 20): the user's quick-reply templates picker.
     case urgramTemplates
+    // URGRAM: mention every group participant (@all).
+    case urgramMentionAll
     case contact
     case poll
     case app(AttachMenuBot)
@@ -56,6 +58,8 @@ public enum AttachmentButtonType: Equatable {
             return "quickReply"
         case .urgramTemplates:
             return "urgramTemplates"
+        case .urgramMentionAll:
+            return "urgramMentionAll"
         case .contact:
             return "contact"
         case .poll:
@@ -119,6 +123,12 @@ public enum AttachmentButtonType: Equatable {
             }
         case .urgramTemplates:
             if case .urgramTemplates = rhs {
+                return true
+            } else {
+                return false
+            }
+        case .urgramMentionAll:
+            if case .urgramMentionAll = rhs {
                 return true
             } else {
                 return false

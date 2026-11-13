@@ -313,6 +313,11 @@ private final class AttachButtonComponent: CombinedComponent {
                 name = strings.primaryComponent.languageCode.hasPrefix("ar") ? "قوالب الردود" : "Reply Templates"
                 animationName = "TabNews"
                 imageName = ""
+            case .urgramMentionAll:
+                // URGRAM: fork label (no generated string-table key).
+                name = strings.primaryComponent.languageCode.hasPrefix("ar") ? "منشن الكل" : "Mention All"
+                animationName = "TabNews"
+                imageName = ""
             case .richText:
                 name = strings.Attachment_Article
                 animationName = "TabArticle"
@@ -2309,6 +2314,9 @@ final class AttachmentPanel: ASDisplayNode, ASScrollViewDelegate, ASGestureRecog
             case .urgramTemplates:
                 // URGRAM (build 20): fork label (no generated string-table key).
                 accessibilityTitle = self.presentationData.strings.primaryComponent.languageCode.hasPrefix("ar") ? "قوالب الردود" : "Reply Templates"
+            case .urgramMentionAll:
+                // URGRAM: fork label (no generated string-table key).
+                accessibilityTitle = self.presentationData.strings.primaryComponent.languageCode.hasPrefix("ar") ? "منشن الكل" : "Mention All"
             case .richText:
                 accessibilityTitle = self.presentationData.strings.Attachment_Article
             }
