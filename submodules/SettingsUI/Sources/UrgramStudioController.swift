@@ -251,6 +251,19 @@ func urgramStudioNextFontSizeRaw(_ rawValue: Int32) -> Int32 {
     return order[0]
 }
 
+// URGRAM (ambience — snow): display name for a snow intensity value
+// (0 = light, 1 = medium, 2 = heavy).
+func urgramStudioSnowIntensityName(_ value: Int, isArabic: Bool) -> String {
+    switch value {
+    case 2:
+        return isArabic ? "كثيف" : "Heavy"
+    case 1:
+        return isArabic ? "متوسط" : "Medium"
+    default:
+        return isArabic ? "خفيف" : "Light"
+    }
+}
+
 // URGRAM: a titled continuous slider row, adapted from
 // ThemeSettingsBrightnessItem (same node/block-background handling) with a
 // text label instead of the min/max icons.
@@ -715,8 +728,9 @@ private final class UrgramStudioControllerArguments {
     let cycleFontSize: (Bool) -> Void
     let updateHomeFlag: (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void
     let setArchiveHidden: (Bool) -> Void
+    let cycleSnowIntensity: () -> Void
 
-    init(context: AccountContext, updateDraft: @escaping ((inout UrgramThemeDesign) -> Void) -> Void, openColorEditor: @escaping (UrgramStudioColorTarget) -> Void, applyDraft: @escaping () -> Void, saveDraft: @escaping () -> Void, resetAppearance: @escaping () -> Void, designAction: @escaping (UrgramThemeDesign) -> Void, importDesign: @escaping () -> Void, applyPreset: @escaping (UrgramThemeDesign) -> Void, cycleFontSize: @escaping (Bool) -> Void, updateHomeFlag: @escaping (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void, setArchiveHidden: @escaping (Bool) -> Void) {
+    init(context: AccountContext, updateDraft: @escaping ((inout UrgramThemeDesign) -> Void) -> Void, openColorEditor: @escaping (UrgramStudioColorTarget) -> Void, applyDraft: @escaping () -> Void, saveDraft: @escaping () -> Void, resetAppearance: @escaping () -> Void, designAction: @escaping (UrgramThemeDesign) -> Void, importDesign: @escaping () -> Void, applyPreset: @escaping (UrgramThemeDesign) -> Void, cycleFontSize: @escaping (Bool) -> Void, updateHomeFlag: @escaping (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void, setArchiveHidden: @escaping (Bool) -> Void, cycleSnowIntensity: @escaping () -> Void) {
         self.context = context
         self.updateDraft = updateDraft
         self.openColorEditor = openColorEditor
@@ -729,6 +743,7 @@ private final class UrgramStudioControllerArguments {
         self.cycleFontSize = cycleFontSize
         self.updateHomeFlag = updateHomeFlag
         self.setArchiveHidden = setArchiveHidden
+        self.cycleSnowIntensity = cycleSnowIntensity
     }
 }
 
@@ -741,6 +756,7 @@ private enum UrgramStudioSection: Int32 {
     case background
     case actions
     case home
+    case ambience
     case designs
 }
 
@@ -790,6 +806,11 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
     case homeHideStory(Bool)
     case homeFooter
 
+    case ambienceHeader
+    case snowEnabled(Bool)
+    case snowIntensity(Int)
+    case ambienceFooter
+
     case designsHeader
     case importAction
     case designsEmptyFooter
@@ -813,6 +834,8 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             return UrgramStudioSection.actions.rawValue
         case .homeHeader, .homeHideStories, .homeArchiveHidden, .homeHideEdit, .homeHideCompose, .homeHideStory, .homeFooter:
             return UrgramStudioSection.home.rawValue
+        case .ambienceHeader, .snowEnabled, .snowIntensity, .ambienceFooter:
+            return UrgramStudioSection.ambience.rawValue
         case .designsHeader, .importAction, .designsEmptyFooter, .design:
             return UrgramStudioSection.designs.rawValue
         }
@@ -858,9 +881,13 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
         case .homeHideCompose: return 74
         case .homeHideStory: return 75
         case .homeFooter: return 76
-        case .designsHeader: return 80
-        case .importAction: return 81
-        case .designsEmptyFooter: return 82
+        case .ambienceHeader: return 77
+        case .snowEnabled: return 78
+        case .snowIntensity: return 79
+        case .ambienceFooter: return 80
+        case .designsHeader: return 90
+        case .importAction: return 91
+        case .designsEmptyFooter: return 92
         case let .design(_, _, index):
             return 1000 + Int32(index)
         }
@@ -949,6 +976,14 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             if case let .homeHideStory(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
         case .homeFooter:
             if case .homeFooter = rhs { return true } else { return false }
+        case .ambienceHeader:
+            if case .ambienceHeader = rhs { return true } else { return false }
+        case let .snowEnabled(lhsValue):
+            if case let .snowEnabled(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case let .snowIntensity(lhsValue):
+            if case let .snowIntensity(rhsValue) = rhs, lhsValue == rhsValue { return true } else { return false }
+        case .ambienceFooter:
+            if case .ambienceFooter = rhs { return true } else { return false }
         case .designsHeader:
             if case .designsHeader = rhs { return true } else { return false }
         case .importAction:
@@ -1102,6 +1137,18 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             })
         case .homeFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "These switches apply immediately — they are interface preferences, not part of saved designs.", "هذه المفاتيح تُطبَّق فورًا — هي تفضيلات واجهة وليست جزءًا من التصاميم المحفوظة.")), sectionId: self.section)
+        case .ambienceHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Ambience", "أجواء"), sectionId: self.section)
+        case let .snowEnabled(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: urgramText(presentationData, "Snowfall ❄️", "تساقط الثلج ❄️"), value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.updateHomeFlag(\.snowEnabled, value)
+            })
+        case let .snowIntensity(value):
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Snow Intensity", "كثافة الثلج"), label: urgramStudioSnowIntensityName(value, isArabic: isArabic), sectionId: self.section, style: .blocks, action: {
+                arguments.cycleSnowIntensity()
+            })
+        case .ambienceFooter:
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Snow falls over the whole app and slowly piles up at the top and bottom of the screen. It melts away when you turn it off.", "يتساقط الثلج على التطبيق كله ويتراكم ببطء أعلى الشاشة وأسفلها. يذوب عند إيقافه.")), sectionId: self.section)
         case .designsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "My Designs", "تصاميمي"), sectionId: self.section)
         case .importAction:
@@ -1197,6 +1244,11 @@ private func urgramStudioControllerEntries(presentationData: PresentationData, s
     entries.append(.homeHideCompose(settings.homeHideComposeButton))
     entries.append(.homeHideStory(settings.homeHideStoryButton))
     entries.append(.homeFooter)
+
+    entries.append(.ambienceHeader)
+    entries.append(.snowEnabled(settings.snowEnabled))
+    entries.append(.snowIntensity(settings.snowIntensity))
+    entries.append(.ambienceFooter)
 
     entries.append(.designsHeader)
     entries.append(.importAction)
@@ -1532,6 +1584,11 @@ public func urgramStudioController(context: AccountContext) -> ViewController {
             let _ = updateChatArchiveSettings(engine: context.engine, { current in
                 return ChatArchiveSettings(isHiddenByDefault: value, hiddenPsaPeerId: current.hiddenPsaPeerId)
             }).start()
+        },
+        cycleSnowIntensity: {
+            UrgramSettingsStore.shared.update { settings in
+                settings.snowIntensity = (settings.snowIntensity + 1) % 3
+            }
         }
     )
 

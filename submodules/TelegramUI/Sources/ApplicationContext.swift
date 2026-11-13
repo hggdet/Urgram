@@ -161,6 +161,8 @@ final class AuthorizedApplicationContext {
     private let inAppNotificationSettingsDisposable = MetaDisposable()
     private let notificationMessagesDisposable = MetaDisposable()
     private let urgramAutoReplyDisposable = MetaDisposable()
+    private let urgramSnowDisposable = MetaDisposable()
+    private let urgramSnowManager = UrgramSnowOverlayManager()
     private let termsOfServiceUpdatesDisposable = MetaDisposable()
     private let termsOfServiceProceedToBotDisposable = MetaDisposable()
     private let watchNavigateToMessageDisposable = MetaDisposable()
@@ -346,6 +348,16 @@ final class AuthorizedApplicationContext {
             for (messages, _, _, _) in messageList {
                 urgramHandleAutoReply(context: context, messages: messages)
             }
+        }))
+
+        // URGRAM (ambience — snow): attach/detach the window-level snow
+        // overlay as the setting changes.
+        self.urgramSnowDisposable.set((UrgramSettingsStore.shared.settingsSignal
+        |> deliverOn(Queue.mainQueue())).start(next: { [weak self] settings in
+            guard let self else {
+                return
+            }
+            self.urgramSnowManager.apply(settings: settings, containerView: context.sharedContext.mainWindow?.hostView.containerView)
         }))
 
         self.notificationMessagesDisposable.set((context.account.stateManager.notificationMessages
@@ -907,6 +919,7 @@ final class AuthorizedApplicationContext {
         self.inAppNotificationSettingsDisposable.dispose()
         self.notificationMessagesDisposable.dispose()
         self.urgramAutoReplyDisposable.dispose()
+        self.urgramSnowDisposable.dispose()
         self.termsOfServiceUpdatesDisposable.dispose()
         self.passcodeLockDisposable.dispose()
         self.passcodeStatusDisposable.dispose()

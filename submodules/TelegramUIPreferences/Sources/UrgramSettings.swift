@@ -168,6 +168,12 @@ public struct UrgramSettings: Codable, Equatable {
     // as string, value = seconds since 1970). Enforces at most one
     // auto-reply per peer per 24 hours.
     public var autoReplyLastSentAt: [String: Double]
+    // Ambience (snow): falling-snow overlay over the whole app window with
+    // slowly accumulating snow caps. Intensity: 0 = light, 1 = medium,
+    // 2 = heavy. Deliberately NOT part of UrgramThemeDesign: designs are
+    // shareable color themes; this is a device-local ambience preference.
+    public var snowEnabled: Bool
+    public var snowIntensity: Int
 
     public init(
         ghostHideRead: Bool,
@@ -209,7 +215,9 @@ public struct UrgramSettings: Codable, Equatable {
         homeHideComposeButton: Bool,
         homeHideStoryButton: Bool,
         hiddenPeerIds: [Int64],
-        autoReplyLastSentAt: [String: Double]
+        autoReplyLastSentAt: [String: Double],
+        snowEnabled: Bool,
+        snowIntensity: Int
     ) {
         self.ghostHideRead = ghostHideRead
         self.ghostHideTyping = ghostHideTyping
@@ -251,6 +259,8 @@ public struct UrgramSettings: Codable, Equatable {
         self.homeHideStoryButton = homeHideStoryButton
         self.hiddenPeerIds = hiddenPeerIds
         self.autoReplyLastSentAt = autoReplyLastSentAt
+        self.snowEnabled = snowEnabled
+        self.snowIntensity = snowIntensity
     }
 
     public static var defaultSettings: UrgramSettings {
@@ -294,7 +304,9 @@ public struct UrgramSettings: Codable, Equatable {
             homeHideComposeButton: false,
             homeHideStoryButton: false,
             hiddenPeerIds: [],
-            autoReplyLastSentAt: [:]
+            autoReplyLastSentAt: [:],
+            snowEnabled: false,
+            snowIntensity: 0
         )
     }
 
@@ -341,6 +353,8 @@ public struct UrgramSettings: Codable, Equatable {
         self.homeHideStoryButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideStoryButton") ?? false
         self.hiddenPeerIds = try container.decodeIfPresent([Int64].self, forKey: "hiddenPeerIds") ?? []
         self.autoReplyLastSentAt = try container.decodeIfPresent([String: Double].self, forKey: "autoReplyLastSentAt") ?? [:]
+        self.snowEnabled = try container.decodeIfPresent(Bool.self, forKey: "snowEnabled") ?? false
+        self.snowIntensity = try container.decodeIfPresent(Int.self, forKey: "snowIntensity") ?? 0
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -386,6 +400,8 @@ public struct UrgramSettings: Codable, Equatable {
         try container.encode(self.homeHideStoryButton, forKey: "homeHideStoryButton")
         try container.encode(self.hiddenPeerIds, forKey: "hiddenPeerIds")
         try container.encode(self.autoReplyLastSentAt, forKey: "autoReplyLastSentAt")
+        try container.encode(self.snowEnabled, forKey: "snowEnabled")
+        try container.encode(self.snowIntensity, forKey: "snowIntensity")
     }
 }
 
