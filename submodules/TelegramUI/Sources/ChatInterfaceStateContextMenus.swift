@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import TelegramCore
+import Postbox
 import AsyncDisplayKit
 import Display
 import UIKit
@@ -505,7 +506,7 @@ private func urgramScheduleMessageReminder(context: AccountContext, messageId: M
     content.sound = .default
     content.categoryIdentifier = "c"
     content.userInfo = [
-        "accountId": context.account.id.rawValue,
+        "accountId": context.account.id.int64,
         "peerId": messageId.peerId.toInt64(),
         "messageId.namespace": messageId.namespace,
         "messageId.id": messageId.id
