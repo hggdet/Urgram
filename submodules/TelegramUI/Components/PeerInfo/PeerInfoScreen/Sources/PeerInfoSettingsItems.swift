@@ -11,6 +11,7 @@ import PhotoResources
 import ItemListPeerItem
 import DeviceAccess
 import TelegramStringFormatting
+import TelegramUIPreferences
 import PeerNameColorItem
 import WalletContext
 
