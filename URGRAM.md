@@ -342,6 +342,25 @@ Researched first (hook points verified in-tree), then wired:
   inverse toggle lives in Appearance). A fork toggle that defaults off
   while the behaviour is on would have been a fake switch.
 
+### Build 18 — fix for the build-17 compile failure (run 43387280835)
+
+Build 17 compiled SettingsUI last and died on two real Swift errors:
+
+- `Peer` / `PeerId` not in scope in `UrgramArchiveController.swift` and
+  `UrgramBookmarksController.swift`: both live in Postbox, and SettingsUI
+  had no Postbox dependency. Fix: `import Postbox` in both files,
+  `"//submodules/Postbox:Postbox"` added to the SettingsUI `BUILD` deps,
+  and both files added to `submodules/Postbox/AllowedImporters.txt`
+  (the import allowlist — the `.postbox` allowlist already covered them
+  since the build-16 fix). Verified locally: PostboxImportCheck exits 0.
+- `Account` has no member `masterDatacenterId` (it exists only on
+  `UnauthorizedAccount`): the account row now reads
+  `Int32(context.account.network.datacenterId)`, the same pattern
+  upstream uses in `Account.swift:91`.
+
+The four cascade errors (`ItemGenerationArguments` inference) follow from
+the unresolved types above and are expected to vanish with them.
+
 Still documented-not-wired after this wave: 6 voice-to-text, 9 hidden
 chats + decoy PIN, 10 keyword filters (storage exists; no honest
 message-hiding hook verified yet), 11 download boost, 12b folders at

@@ -445,7 +445,7 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
         presentationData = presentationData.withUpdated(theme: updatedTheme)
 
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("Urgram"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: urgramSettingsControllerEntries(settings: settings, isArabic: presentationData.strings.primaryComponent.languageCode.hasPrefix("ar"), accountId: context.account.peerId.toInt64(), datacenterId: context.account.masterDatacenterId), style: .blocks, animateChanges: true)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: urgramSettingsControllerEntries(settings: settings, isArabic: presentationData.strings.primaryComponent.languageCode.hasPrefix("ar"), accountId: context.account.peerId.toInt64(), datacenterId: Int32(context.account.network.datacenterId)), style: .blocks, animateChanges: true)
 
         return (controllerState, (listState, arguments))
     }
