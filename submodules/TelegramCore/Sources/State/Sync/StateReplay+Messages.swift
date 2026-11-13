@@ -305,6 +305,10 @@ extension ReplayContext {
     }
     
     func applyEditMessage(_ id: MessageId, _ message: StoreMessage) {
+        // URGRAM (item 3): keep the pre-edit text of edited messages.
+        if UrgramFeatureHooks.keepEditedMessages {
+            urgramArchiveEditBeforeUpdate(transaction: transaction, id: id, newText: message.text)
+        }
         var generatedEvent: (reactionAuthor: Peer, reaction: MessageReaction.Reaction, message: Message, timestamp: Int32)?
         transaction.updateMessage(id, update: { previousMessage in
             let peers: [PeerId:Peer] = previousMessage.peers.reduce([:], { current, value in

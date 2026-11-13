@@ -1489,6 +1489,16 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                     })))
                 }
                 
+                // URGRAM (item 15): bookmark a local text snapshot of this message.
+                actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.primaryComponent.languageCode.hasPrefix("ar") ? "إشارة مرجعية" : "Bookmark", icon: { _ in
+                    return nil
+                }, action: { _, f in
+                    let _ = context.account.postbox.transaction { transaction -> Void in
+                        urgramAddBookmark(transaction: transaction, id: message.id)
+                    }.startStandalone()
+                    f(.default)
+                })))
+
                 if isSpeakSelectionEnabled() && !messageText.isEmpty {
                     actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuSpeak, icon: { theme in
                         return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Message"), color: theme.actionSheet.primaryTextColor)

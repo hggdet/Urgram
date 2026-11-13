@@ -76,6 +76,63 @@ public func urgramClearMessageArchive(transaction: Transaction) {
     }
 }
 
+// URGRAM (item 3, edits): pre-edit originals live under their own key (101)
+// so the viewer can present them separately from deleted messages. The
+// record's fields describe the ORIGINAL (pre-edit) message.
+private let urgramEditedOriginalsPreferencesKey: ValueBoxKey = applicationSpecificPreferencesKey(101)
+
+private let urgramEditedOriginalsLimit = 1000
+
+// URGRAM
+public func urgramEditedOriginals(transaction: Transaction) -> [UrgramArchivedMessage] {
+    return transaction.getPreferencesEntry(key: urgramEditedOriginalsPreferencesKey)?.get([UrgramArchivedMessage].self) ?? []
+}
+
+// URGRAM
+public func urgramClearEditedOriginals(transaction: Transaction) {
+    if let entry = PreferencesEntry([UrgramArchivedMessage]()) {
+        transaction.setPreferencesEntry(key: urgramEditedOriginalsPreferencesKey, value: entry)
+    }
+}
+
+// URGRAM: called from StateReplay.applyEditMessage before the edit is
+// applied, so the message's current (pre-edit) text survives locally.
+// No-ops when the stored text already equals the incoming text (media- or
+// caption-only edits, reaction updates, and own edits whose response was
+// already applied by RequestEditMessage all land here with equal text).
+func urgramArchiveEditBeforeUpdate(transaction: Transaction, id: MessageId, newText: String) {
+    guard let old = transaction.getMessage(id) else {
+        return
+    }
+    if old.text.isEmpty || old.text == newText {
+        return
+    }
+    let mediaKind: String
+    if let firstMedia = old.media.first {
+        mediaKind = String(describing: type(of: firstMedia))
+    } else {
+        mediaKind = ""
+    }
+    let record = UrgramArchivedMessage(
+        peerId: id.peerId.toInt64(),
+        namespace: id.namespace,
+        messageId: id.id,
+        timestamp: old.timestamp,
+        authorId: old.author?.id.toInt64(),
+        isOutgoing: !old.flags.contains(.Incoming),
+        text: old.text,
+        mediaKind: mediaKind
+    )
+    var originals = urgramEditedOriginals(transaction: transaction)
+    originals.append(record)
+    if originals.count > urgramEditedOriginalsLimit {
+        originals.removeFirst(originals.count - urgramEditedOriginalsLimit)
+    }
+    if let entry = PreferencesEntry(originals) {
+        transaction.setPreferencesEntry(key: urgramEditedOriginalsPreferencesKey, value: entry)
+    }
+}
+
 // URGRAM: called from `_internal_deleteMessages` before the messages are
 // removed, so their text survives locally.
 func urgramArchiveMessagesBeforeDeletion(transaction: Transaction, ids: [MessageId]) {

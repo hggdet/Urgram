@@ -306,6 +306,49 @@ check. Per-item status below is exact: **implemented** / **partial** /
   monitoring (see item 10), and call recording (also legally sensitive in
   many jurisdictions) were left out deliberately.
 
+### Build 17 (2026-11-13) — second feature wave
+
+Researched first (hook points verified in-tree), then wired:
+
+- **Item 3 (edits) — WIRED.** `UrgramFeatureHooks.keepEditedMessages`
+  (mirrored from settings) gates a capture in
+  `StateReplay.applyEditMessage`: before the edit applies, the stored
+  message's current text is snapshotted via
+  `urgramArchiveEditBeforeUpdate` into a separate preferences store
+  (key 101, cap 1,000). Equal-text arrivals (media-only edits, own edits
+  already applied by RequestEditMessage) no-op. The archive viewer now
+  has two sections: Deleted Messages / Originals Before Editing.
+- **Item 15 Bookmarks — WIRED.** New "Bookmark" item in the message
+  context menu (`ChatInterfaceStateContextMenus.swift`, after Translate)
+  snapshots the message text via `urgramAddBookmark` (TelegramCore,
+  `UrgramBookmarks.swift`, key 102, cap 500, re-bookmark replaces). New
+  viewer `UrgramBookmarksController.swift`, linked from the Urgram
+  settings Content section.
+- **Item 17 (call confirmation) — WIRED for 1-to-1 calls.** Gate at the
+  top of `AccountContext.requestCall` (the single funnel for chat-header
+  and peer-info calls): when the toggle is on, a bilingual alert asks
+  before `urgramPerformRequestCall` (the original body) runs. Group
+  voice chats (`joinGroupCall`) are not gated.
+- **Item 20 (Disable Stories, hard) — WIRED.** When on,
+  `StoryContainerScreen.openPeerStoriesCustom` returns immediately, so
+  stories cannot be opened from the chat list, chat avatars or peer
+  info. Own archived stories (a separate entry point) still open.
+- **Item 23 — completed.** The Urgram settings account row now also
+  shows the datacenter (`context.account.masterDatacenterId`, e.g.
+  "DC4"). Registration date remains unavailable from the client.
+- **Item 31 Send with Enter — toggle REMOVED as redundant.** Verified
+  in-tree: upstream already sends with Enter by default
+  (`ChatSettings.sendWithCmdEnter` defaults to false; the user-facing
+  inverse toggle lives in Appearance). A fork toggle that defaults off
+  while the behaviour is on would have been a fake switch.
+
+Still documented-not-wired after this wave: 6 voice-to-text, 9 hidden
+chats + decoy PIN, 10 keyword filters (storage exists; no honest
+message-hiding hook verified yet), 11 download boost, 12b folders at
+bottom, 16 streamer mode, 18 forward without attribution, 24b noise
+suppression, 26 combine/undo-redo, 29 @all + auto-reply, 32 lyrics,
+33 plugins.
+
 ### Verification honesty
 
 No compile was run for any of this (Linux VM, no Xcode). What was done:

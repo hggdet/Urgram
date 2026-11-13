@@ -1009,6 +1009,23 @@ public final class AccountContextImpl: AccountContext {
     }
     
     public func requestCall(peerId: EnginePeer.Id, isVideo: Bool, completion: @escaping () -> Void) {
+        // URGRAM (item 17): optional confirmation before placing a 1-to-1
+        // call. Group voice chats use joinGroupCall and are not gated here.
+        if UrgramSettingsStore.shared.current.callConfirmation {
+            let presentationData = self.sharedContext.currentPresentationData.with { $0 }
+            let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
+            self.sharedContext.mainWindow?.present(textAlertController(context: self, title: isArabic ? "بدء مكالمة؟" : "Start Call?", text: isArabic ? "اضغط «اتصال» لبدء المكالمة." : "Tap Call to start the call.", actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_Cancel, action: {}), TextAlertAction(type: .genericAction, title: isArabic ? "اتصال" : "Call", action: { [weak self] in
+                guard let strongSelf = self else {
+                    return
+                }
+                strongSelf.urgramPerformRequestCall(peerId: peerId, isVideo: isVideo, completion: completion)
+            })]), on: .root)
+            return
+        }
+        self.urgramPerformRequestCall(peerId: peerId, isVideo: isVideo, completion: completion)
+    }
+
+    private func urgramPerformRequestCall(peerId: EnginePeer.Id, isVideo: Bool, completion: @escaping () -> Void) {
         guard let callResult = self.sharedContext.callManager?.requestCall(context: self, peerId: peerId, isVideo: isVideo, endCurrentIfAny: false) else {
             return
         }

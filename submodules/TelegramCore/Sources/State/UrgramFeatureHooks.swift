@@ -23,6 +23,11 @@ public enum UrgramFeatureHooks {
     public static var saveRestrictedBypass: Bool = false
     /// Item 3: keep a local archive copy of messages that get deleted/edited.
     public static var keepDeletedMessages: Bool = false
+    /// Item 3 (edits): keep the pre-edit text of messages that get edited
+    /// (read in StateReplay.applyEditMessage).
+    public static var keepEditedMessages: Bool = false
+    /// Item 20 (hard): never open the story viewer at all.
+    public static var disableStories: Bool = false
     /// Item 24: do not send the screenshot service notification in secret chats.
     public static var secretChatScreenshotSilent: Bool = false
 }

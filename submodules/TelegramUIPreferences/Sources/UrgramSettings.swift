@@ -296,6 +296,8 @@ public final class UrgramSettingsStore {
         UrgramFeatureHooks.hideSponsored = settings.hideSponsored
         UrgramFeatureHooks.saveRestrictedBypass = settings.saveRestrictedBypass
         UrgramFeatureHooks.keepDeletedMessages = settings.keepDeletedMessages
+        UrgramFeatureHooks.keepEditedMessages = settings.keepEditedMessages
+        UrgramFeatureHooks.disableStories = settings.disableStories
         UrgramFeatureHooks.secretChatScreenshotSilent = settings.secretChatScreenshotSilent
     }
 }
