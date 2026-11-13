@@ -20,12 +20,12 @@ enum SettingsSection: Int, CaseIterable {
     case phone
     case accounts
     case myProfile
+    case urgram // URGRAM: directly under My Profile at the user's order (2026-11-13) so people notice it
     case wallet
     case proxy
     case apps
     case shortcuts
     case advanced
-    case urgram // URGRAM
     case payment
     case extra
     case support

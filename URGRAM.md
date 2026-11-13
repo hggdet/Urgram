@@ -269,6 +269,14 @@ check. Per-item status below is exact: **implemented** / **partial** /
   Latin). The font picker no longer filters by ttf/otf UTTypes (a
   sideloaded app declares none, so iOS 27 greys the files out); it opens
   all files and `UrgramFontManager.importFont` validates the pick.
+  **Build 16 (2026-11-13) — placement + intro rebrand.** At the user's
+  order: the Urgram row in the main Settings list moved from after
+  Advanced to directly under My Profile (`SettingsSection.urgram` now
+  follows `.myProfile` in PeerInfoSettingsItems.swift) so people notice
+  it. Intro page 1 rebranded per BRAND.md: en `Tour.Title1` "Telegram" →
+  "Urgram", `Tour.Text1` → the approved tagline "Five thousand years of
+  **messages**. One **Urgram**." (RMIntro reads the en bundle; the intro
+  artwork animation itself is compiled OpenGL data and is unchanged.)
 - **28 Auto-delete — covered by upstream.** Per-chat autoremove timers and
   a global auto-delete (Privacy → Auto-Delete Messages) already exist in
   13.2. Delete-all-my-messages: see item 24.
