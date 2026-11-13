@@ -5639,9 +5639,6 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                 return
             }
             self.openEditMessageFactCheck(messageId: messageId)
-        }, setupEditMessage: { [weak self] messageId, completion in
-            // URGRAM (item 27): double-tap to edit forwards to the panel editor.
-            self?.interfaceInteraction?.setupEditMessage(messageId, completion)
         }, sendGift: { [weak self] peerId in
             guard let self else {
                 return
@@ -6041,6 +6038,11 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             }, queue: .mainQueue())
             self.richTextCheckboxDebounceTimers[messageId] = timer
             timer.start()
+        }, setupEditMessage: { [weak self] messageId, completion in
+            // URGRAM (item 27): double-tap to edit forwards to the panel editor.
+            // NOTE: Swift requires call-site order to match the init declaration
+            // (after toggleMessageRichTextCheckbox), hence the placement here.
+            self?.interfaceInteraction?.setupEditMessage(messageId, completion)
         }, openStarsPurchase: { [weak self] amount in
             self?.interfaceInteraction?.openStarsPurchase(amount)
         }, openRankInfo: { [weak self] peer, role, rank in
