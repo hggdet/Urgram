@@ -94,6 +94,7 @@ swift_library(
         "//submodules/TelegramUI/Components/PeerReportScreen",
         "//submodules/PhoneNumberFormat",
         "//submodules/PhotoResources",
+        "//submodules/Postbox:Postbox",
         "//submodules/PremiumUI",
         "//submodules/PresentationDataUtils",
         "//submodules/QrCode",

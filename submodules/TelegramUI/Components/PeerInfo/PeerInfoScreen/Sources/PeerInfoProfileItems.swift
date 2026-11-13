@@ -7,6 +7,7 @@ import TelegramCore
 import PeerInfoUI
 import TextFormat
 import PhoneNumberFormat
+import Postbox
 import TelegramUIPreferences
 import SwiftSignalKit
 import TelegramStringFormatting
@@ -94,6 +95,8 @@ private func urgramExportPeerName(_ peer: Peer?) -> String {
         return channel.title
     } else if let group = peer as? TelegramGroup {
         return group.title
+    } else if let community = peer as? TelegramCommunity {
+        return community.title
     }
     return ""
 }
@@ -1085,6 +1088,9 @@ func infoItems(
         case let .channel(channel):
             exportPeerId = channel.id
             exportPeerTitle = channel.title
+        case let .community(community):
+            exportPeerId = community.id
+            exportPeerTitle = community.title
         case .secretChat:
             exportPeerId = nil
             exportPeerTitle = ""
