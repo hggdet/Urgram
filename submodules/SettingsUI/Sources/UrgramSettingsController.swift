@@ -34,6 +34,7 @@ private final class UrgramSettingsControllerArguments {
     let openBookmarks: () -> Void
     let openTemplates: () -> Void
     let openHiddenChats: () -> Void
+    let openIdentity: () -> Void
     let pickAutoReplyTemplate: () -> Void
     let cycleAutoArchive: () -> Void
     let markAllChatsAsRead: () -> Void
@@ -47,6 +48,7 @@ private final class UrgramSettingsControllerArguments {
         openBookmarks: @escaping () -> Void,
         openTemplates: @escaping () -> Void,
         openHiddenChats: @escaping () -> Void,
+        openIdentity: @escaping () -> Void,
         pickAutoReplyTemplate: @escaping () -> Void,
         cycleAutoArchive: @escaping () -> Void,
         markAllChatsAsRead: @escaping () -> Void
@@ -59,6 +61,7 @@ private final class UrgramSettingsControllerArguments {
         self.openBookmarks = openBookmarks
         self.openTemplates = openTemplates
         self.openHiddenChats = openHiddenChats
+        self.openIdentity = openIdentity
         self.pickAutoReplyTemplate = pickAutoReplyTemplate
         self.cycleAutoArchive = cycleAutoArchive
         self.markAllChatsAsRead = markAllChatsAsRead
@@ -66,6 +69,7 @@ private final class UrgramSettingsControllerArguments {
 }
 
 private enum UrgramSettingsSection: Int32 {
+    case identity
     case ghost
     case privacy
     case content
@@ -80,6 +84,9 @@ private enum UrgramSettingsSection: Int32 {
 }
 
 private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
+    case identityHeader
+    case openIdentity
+
     case ghostHeader
     case ghostHideRead(Bool)
     case ghostHideTyping(Bool)
@@ -144,6 +151,8 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
 
     var section: ItemListSectionId {
         switch self {
+        case .identityHeader, .openIdentity:
+            return UrgramSettingsSection.identity.rawValue
         case .ghostHeader, .ghostHideRead, .ghostHideTyping, .ghostHideOnline, .ghostHideStoryViews, .ghostFooter:
             return UrgramSettingsSection.ghost.rawValue
         case .privacyHeader, .streamerMode, .secretChatScreenshotSilent, .hidePhoneInProfile:
@@ -171,6 +180,10 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
 
     var stableId: Int32 {
         switch self {
+        // URGRAM: negative ids so the identity section sorts first —
+        // entries are ordered by stableId across the whole list.
+        case .identityHeader: return -20
+        case .openIdentity: return -19
         case .ghostHeader: return 0
         case .ghostHideRead: return 1
         case .ghostHideTyping: return 2
@@ -238,6 +251,12 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! UrgramSettingsControllerArguments
         switch self {
+        case .identityHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Identity", "الهوية"), sectionId: self.section)
+        case .openIdentity:
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "My Urgram Identity", "هويتي في أورغرام"), label: "", sectionId: self.section, style: .blocks, action: {
+                arguments.openIdentity()
+            })
         case .ghostHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Ghost Mode", "وضع الشبح"), sectionId: self.section)
         case let .ghostHideRead(value):
@@ -381,6 +400,11 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
     // sections/rows and every stored-but-unwired (dead) toggle are omitted
     // entirely; the full edition shows everything as before.
     let isClean = UrgramEdition.isClean
+
+    // URGRAM (identity registry): a clean-legal feature — shown in both
+    // editions, at the top of the section list.
+    entries.append(.identityHeader)
+    entries.append(.openIdentity)
 
     if !isClean {
         entries.append(.ghostHeader)
@@ -553,6 +577,9 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
             } else {
                 pushImpl?(urgramHiddenChatsController(context: context))
             }
+        },
+        openIdentity: {
+            pushImpl?(urgramIdentityController(context: context))
         },
         pickAutoReplyTemplate: {
             // URGRAM (auto-reply): the reply text is picked from the
