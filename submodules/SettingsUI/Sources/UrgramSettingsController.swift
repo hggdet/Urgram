@@ -34,6 +34,7 @@ private final class UrgramSettingsControllerArguments {
     let openBookmarks: () -> Void
     let openTemplates: () -> Void
     let openHiddenChats: () -> Void
+    let pickAutoReplyTemplate: () -> Void
     let cycleAutoArchive: () -> Void
     let markAllChatsAsRead: () -> Void
 
@@ -46,6 +47,7 @@ private final class UrgramSettingsControllerArguments {
         openBookmarks: @escaping () -> Void,
         openTemplates: @escaping () -> Void,
         openHiddenChats: @escaping () -> Void,
+        pickAutoReplyTemplate: @escaping () -> Void,
         cycleAutoArchive: @escaping () -> Void,
         markAllChatsAsRead: @escaping () -> Void
     ) {
@@ -57,6 +59,7 @@ private final class UrgramSettingsControllerArguments {
         self.openBookmarks = openBookmarks
         self.openTemplates = openTemplates
         self.openHiddenChats = openHiddenChats
+        self.pickAutoReplyTemplate = pickAutoReplyTemplate
         self.cycleAutoArchive = cycleAutoArchive
         self.markAllChatsAsRead = markAllChatsAsRead
     }
@@ -108,6 +111,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
     case autoReplyEnabled(Bool)
     case openTemplates(Int)
     case autoArchive(Int)
+    case autoReplyTemplate(String)
     case openHiddenChats(Int)
     case chatsFooter
 
@@ -146,7 +150,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return UrgramSettingsSection.privacy.rawValue
         case .contentHeader, .saveRestrictedBypass, .keepDeletedMessages, .keepEditedMessages, .openArchive, .openBookmarks, .hideSponsored, .keywordFiltersEnabled, .contentFooter:
             return UrgramSettingsSection.content.rawValue
-        case .chatsHeader, .hideStoriesBar, .disableStories, .foldersAtBottom, .doubleTapEditOwnMessages, .mentionAll, .autoReplyEnabled, .openTemplates, .autoArchive, .openHiddenChats, .chatsFooter:
+        case .chatsHeader, .hideStoriesBar, .disableStories, .foldersAtBottom, .doubleTapEditOwnMessages, .mentionAll, .autoReplyEnabled, .autoReplyTemplate, .openTemplates, .autoArchive, .openHiddenChats, .chatsFooter:
             return UrgramSettingsSection.chats.rawValue
         case .mediaHeader, .defaultHDPhotos, .downloadBoost, .voiceNoiseSuppression:
             return UrgramSettingsSection.media.rawValue
@@ -196,6 +200,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
         case .openTemplates: return 38
         case .autoArchive: return 39
         case .openHiddenChats: return 40
+        case .autoReplyTemplate: return 41
         case .chatsFooter: return 42
         case .mediaHeader: return 45
         case .defaultHDPhotos: return 46
@@ -289,6 +294,11 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Mention All (@all)", "منشن الجميع (@all)"), value: value, keyPath: \.mentionAll)
         case let .autoReplyEnabled(value):
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Auto-Reply", "الرد التلقائي"), value: value, keyPath: \.autoReplyEnabled)
+        case let .autoReplyTemplate(text):
+            let label = text.isEmpty ? urgramText(presentationData, "Not Set", "غير مضبوط") : String(text.prefix(24))
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Auto-Reply Message", "رسالة الرد التلقائي"), label: label, sectionId: self.section, style: .blocks, action: {
+                arguments.pickAutoReplyTemplate()
+            })
         case let .openTemplates(count):
             return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Quick Replies", "ردود سريعة"), label: count > 0 ? "\(count)" : "", sectionId: self.section, style: .blocks, action: {
                 arguments.openTemplates()
@@ -408,8 +418,9 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
     if !isClean {
         entries.append(.foldersAtBottom(settings.foldersAtBottom))
         entries.append(.mentionAll(settings.mentionAll))
-        entries.append(.autoReplyEnabled(settings.autoReplyEnabled))
     }
+    entries.append(.autoReplyEnabled(settings.autoReplyEnabled))
+    entries.append(.autoReplyTemplate(settings.autoReplyText))
     entries.append(.doubleTapEditOwnMessages(settings.doubleTapEditOwnMessages))
     entries.append(.openTemplates(settings.replyTemplates.count))
     entries.append(.autoArchive(settings.autoArchiveInactiveDays))
@@ -471,6 +482,7 @@ func urgramFontChoiceLabel(_ settings: UrgramSettings, isArabic: Bool) -> String
 
 public func urgramSettingsController(context: AccountContext) -> ViewController {
     var pushImpl: ((ViewController) -> Void)?
+    var presentImpl: ((UIViewController) -> Void)?
 
     let arguments = UrgramSettingsControllerArguments(
         update: { keyPath, value in
@@ -542,6 +554,29 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
                 pushImpl?(urgramHiddenChatsController(context: context))
             }
         },
+        pickAutoReplyTemplate: {
+            // URGRAM (auto-reply): the reply text is picked from the
+            // quick-reply templates, so there is one place to edit phrases.
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
+            let templates = UrgramSettingsStore.shared.current.replyTemplates
+            if templates.isEmpty {
+                let alert = UIAlertController(title: isArabic ? "الرد التلقائي" : "Auto-Reply", message: isArabic ? "أضف عبارات أولًا من «ردود سريعة» في الأعلى، ثم اختر واحدة هنا." : "Add phrases under Quick Replies above first, then pick one here.", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: presentationData.strings.Common_OK, style: .default))
+                presentImpl?(alert)
+                return
+            }
+            let sheet = UIAlertController(title: isArabic ? "رسالة الرد التلقائي" : "Auto-Reply Message", message: nil, preferredStyle: .actionSheet)
+            for template in templates {
+                sheet.addAction(UIAlertAction(title: String(template.prefix(60)), style: .default, handler: { _ in
+                    UrgramSettingsStore.shared.update { settings in
+                        settings.autoReplyText = template
+                    }
+                }))
+            }
+            sheet.addAction(UIAlertAction(title: presentationData.strings.Common_Cancel, style: .cancel))
+            presentImpl?(sheet)
+        },
         cycleAutoArchive: {
             UrgramSettingsStore.shared.update { settings in
                 switch settings.autoArchiveInactiveDays {
@@ -583,6 +618,17 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
     let controller = ItemListController(context: context, state: signal)
     pushImpl = { [weak controller] c in
         controller?.push(c)
+    }
+    presentImpl = { [weak controller] vc in
+        guard let controller = controller else {
+            return
+        }
+        if let popover = vc.popoverPresentationController {
+            popover.sourceView = controller.view
+            popover.sourceRect = CGRect(x: controller.view.bounds.midX, y: controller.view.bounds.maxY - 40.0, width: 0.0, height: 0.0)
+            popover.permittedArrowDirections = []
+        }
+        controller.present(vc, animated: true)
     }
     return controller
 }

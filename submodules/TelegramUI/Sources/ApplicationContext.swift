@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import Postbox
 import Intents
 import TelegramPresentationData
 import TelegramUIPreferences
@@ -98,6 +99,49 @@ final class UnauthorizedApplicationContext {
     }
 }
 
+// URGRAM (auto-reply): answers a fresh incoming private-chat message with
+// the user's chosen quick-reply template, at most once per peer per 24
+// hours. Loop safety: only messages from other human users are considered
+// (never self, never bots, never Telegram's service/verification peers),
+// the cooldown stamp is written BEFORE sending, and our own auto-reply is
+// outgoing so it can never re-trigger this handler. Stale messages (sync
+// backlog older than 5 minutes) are ignored.
+private func urgramHandleAutoReply(context: AccountContext, messages: [Message]) {
+    let settings = UrgramSettingsStore.shared.current
+    guard settings.autoReplyEnabled, !settings.autoReplyText.isEmpty else {
+        return
+    }
+    let now = Date().timeIntervalSince1970
+    for message in messages {
+        let peerId = message.id.peerId
+        guard peerId.namespace == Namespaces.Peer.CloudUser else {
+            continue
+        }
+        guard let authorId = message.author?.id, authorId != context.account.peerId else {
+            continue
+        }
+        // Telegram service notifications (777000) and verification codes.
+        if authorId._internalGetInt64Value() == 777000 {
+            continue
+        }
+        guard let author = message.peers[authorId] as? TelegramUser, author.botInfo == nil else {
+            continue
+        }
+        guard abs(now - Double(message.timestamp)) < 300.0 else {
+            continue
+        }
+        let cooldownKey = "\(peerId.toInt64())"
+        if let lastSent = settings.autoReplyLastSentAt[cooldownKey], now - lastSent < 24.0 * 3600.0 {
+            continue
+        }
+        UrgramSettingsStore.shared.update { updated in
+            updated.autoReplyLastSentAt[cooldownKey] = now
+        }
+        let _ = (enqueueMessages(account: context.account, peerId: peerId, messages: [.message(text: settings.autoReplyText, attributes: [], inlineStickers: [:], mediaReference: nil, threadId: nil, replyToMessageId: nil, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: [])])
+        |> deliverOnMainQueue).startStandalone()
+    }
+}
+
 final class AuthorizedApplicationContext {
     let sharedApplicationContext: SharedApplicationContext
     let mainWindow: Window1
@@ -116,6 +160,7 @@ final class AuthorizedApplicationContext {
     private let loggedOutDisposable = MetaDisposable()
     private let inAppNotificationSettingsDisposable = MetaDisposable()
     private let notificationMessagesDisposable = MetaDisposable()
+    private let urgramAutoReplyDisposable = MetaDisposable()
     private let termsOfServiceUpdatesDisposable = MetaDisposable()
     private let termsOfServiceProceedToBotDisposable = MetaDisposable()
     private let watchNavigateToMessageDisposable = MetaDisposable()
@@ -294,6 +339,15 @@ final class AuthorizedApplicationContext {
         }))
 
         let engine = context.engine
+        // URGRAM (auto-reply): a parallel subscription on the same
+        // incoming-message funnel that drives in-app notifications.
+        self.urgramAutoReplyDisposable.set((context.account.stateManager.notificationMessages
+        |> deliverOn(Queue.mainQueue())).start(next: { messageList in
+            for (messages, _, _, _) in messageList {
+                urgramHandleAutoReply(context: context, messages: messages)
+            }
+        }))
+
         self.notificationMessagesDisposable.set((context.account.stateManager.notificationMessages
         |> mapToSignal { messageList in
             return engine.data.get(EngineDataMap(
@@ -852,6 +906,7 @@ final class AuthorizedApplicationContext {
         self.loggedOutDisposable.dispose()
         self.inAppNotificationSettingsDisposable.dispose()
         self.notificationMessagesDisposable.dispose()
+        self.urgramAutoReplyDisposable.dispose()
         self.termsOfServiceUpdatesDisposable.dispose()
         self.passcodeLockDisposable.dispose()
         self.passcodeStatusDisposable.dispose()

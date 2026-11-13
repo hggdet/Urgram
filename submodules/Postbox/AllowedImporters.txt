@@ -80,6 +80,7 @@ submodules/TelegramUI/Components/StickerPickerScreen/Sources/StickerPickerScreen
 submodules/TelegramUI/Components/Stories/StoryContainerScreen/Sources/StoryChatContent.swift
 submodules/TelegramUI/Components/TelegramAccountAuxiliaryMethods/Sources/TelegramAccountAuxiliaryMethods.swift
 submodules/TelegramUI/Sources/AppDelegate.swift
+submodules/TelegramUI/Sources/ApplicationContext.swift
 submodules/TelegramUI/Sources/ChatController.swift
 submodules/TelegramUI/Sources/ChatControllerContentData.swift
 submodules/TelegramUI/Sources/ChatControllerNode.swift

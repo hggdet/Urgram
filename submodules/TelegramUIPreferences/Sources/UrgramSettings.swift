@@ -164,6 +164,10 @@ public struct UrgramSettings: Codable, Equatable {
     // the main chat list. Filtered at ChatListNode's entry filtering and
     // managed from the lock-gated "Hidden Chats" screen in Urgram Settings.
     public var hiddenPeerIds: [Int64]
+    // Auto-reply: last auto-reply send time per peer (key = packed peer id
+    // as string, value = seconds since 1970). Enforces at most one
+    // auto-reply per peer per 24 hours.
+    public var autoReplyLastSentAt: [String: Double]
 
     public init(
         ghostHideRead: Bool,
@@ -204,7 +208,8 @@ public struct UrgramSettings: Codable, Equatable {
         homeHideEditButton: Bool,
         homeHideComposeButton: Bool,
         homeHideStoryButton: Bool,
-        hiddenPeerIds: [Int64]
+        hiddenPeerIds: [Int64],
+        autoReplyLastSentAt: [String: Double]
     ) {
         self.ghostHideRead = ghostHideRead
         self.ghostHideTyping = ghostHideTyping
@@ -245,6 +250,7 @@ public struct UrgramSettings: Codable, Equatable {
         self.homeHideComposeButton = homeHideComposeButton
         self.homeHideStoryButton = homeHideStoryButton
         self.hiddenPeerIds = hiddenPeerIds
+        self.autoReplyLastSentAt = autoReplyLastSentAt
     }
 
     public static var defaultSettings: UrgramSettings {
@@ -287,7 +293,8 @@ public struct UrgramSettings: Codable, Equatable {
             homeHideEditButton: false,
             homeHideComposeButton: false,
             homeHideStoryButton: false,
-            hiddenPeerIds: []
+            hiddenPeerIds: [],
+            autoReplyLastSentAt: [:]
         )
     }
 
@@ -333,6 +340,7 @@ public struct UrgramSettings: Codable, Equatable {
         self.homeHideComposeButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideComposeButton") ?? false
         self.homeHideStoryButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideStoryButton") ?? false
         self.hiddenPeerIds = try container.decodeIfPresent([Int64].self, forKey: "hiddenPeerIds") ?? []
+        self.autoReplyLastSentAt = try container.decodeIfPresent([String: Double].self, forKey: "autoReplyLastSentAt") ?? [:]
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -377,6 +385,7 @@ public struct UrgramSettings: Codable, Equatable {
         try container.encode(self.homeHideComposeButton, forKey: "homeHideComposeButton")
         try container.encode(self.homeHideStoryButton, forKey: "homeHideStoryButton")
         try container.encode(self.hiddenPeerIds, forKey: "hiddenPeerIds")
+        try container.encode(self.autoReplyLastSentAt, forKey: "autoReplyLastSentAt")
     }
 }
 
