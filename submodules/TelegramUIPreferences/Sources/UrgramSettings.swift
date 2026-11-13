@@ -174,6 +174,12 @@ public struct UrgramSettings: Codable, Equatable {
     // shareable color themes; this is a device-local ambience preference.
     public var snowEnabled: Bool
     public var snowIntensity: Int
+    // Profile identity registry: the user's own card draft (long bio +
+    // social links), edited in «هويتي في أورغرام» and published to the
+    // registry group from there. The banner image itself is not stored
+    // here; publishing re-reads the current published record to keep it.
+    public var identityBio: String
+    public var identityLinks: [UrgramIdentityLink]
 
     public init(
         ghostHideRead: Bool,
@@ -217,7 +223,9 @@ public struct UrgramSettings: Codable, Equatable {
         hiddenPeerIds: [Int64],
         autoReplyLastSentAt: [String: Double],
         snowEnabled: Bool,
-        snowIntensity: Int
+        snowIntensity: Int,
+        identityBio: String,
+        identityLinks: [UrgramIdentityLink]
     ) {
         self.ghostHideRead = ghostHideRead
         self.ghostHideTyping = ghostHideTyping
@@ -261,6 +269,8 @@ public struct UrgramSettings: Codable, Equatable {
         self.autoReplyLastSentAt = autoReplyLastSentAt
         self.snowEnabled = snowEnabled
         self.snowIntensity = snowIntensity
+        self.identityBio = identityBio
+        self.identityLinks = identityLinks
     }
 
     public static var defaultSettings: UrgramSettings {
@@ -306,7 +316,9 @@ public struct UrgramSettings: Codable, Equatable {
             hiddenPeerIds: [],
             autoReplyLastSentAt: [:],
             snowEnabled: false,
-            snowIntensity: 0
+            snowIntensity: 0,
+            identityBio: "",
+            identityLinks: []
         )
     }
 
@@ -355,6 +367,8 @@ public struct UrgramSettings: Codable, Equatable {
         self.autoReplyLastSentAt = try container.decodeIfPresent([String: Double].self, forKey: "autoReplyLastSentAt") ?? [:]
         self.snowEnabled = try container.decodeIfPresent(Bool.self, forKey: "snowEnabled") ?? false
         self.snowIntensity = try container.decodeIfPresent(Int.self, forKey: "snowIntensity") ?? 0
+        self.identityBio = try container.decodeIfPresent(String.self, forKey: "identityBio") ?? ""
+        self.identityLinks = try container.decodeIfPresent([UrgramIdentityLink].self, forKey: "identityLinks") ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -402,6 +416,8 @@ public struct UrgramSettings: Codable, Equatable {
         try container.encode(self.autoReplyLastSentAt, forKey: "autoReplyLastSentAt")
         try container.encode(self.snowEnabled, forKey: "snowEnabled")
         try container.encode(self.snowIntensity, forKey: "snowIntensity")
+        try container.encode(self.identityBio, forKey: "identityBio")
+        try container.encode(self.identityLinks, forKey: "identityLinks")
     }
 }
 
