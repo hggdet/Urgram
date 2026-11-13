@@ -43,6 +43,8 @@ import AdsInfoScreen
 import AdsReportScreen
 import WalletContext
 import WalletSendScreen
+import ConvertOpusToAAC
+import LocalAudioTranscription
  
 private struct MessageContextMenuData {
     let starStatus: Bool?
@@ -515,6 +517,76 @@ private func urgramScheduleMessageReminder(context: AccountContext, messageId: M
     let identifier = "urgram-reminder-\(messageId.peerId.toInt64())-\(messageId.id)-\(Int64(fireDate.timeIntervalSince1970))"
     UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+}
+
+// URGRAM (voice-to-text): retains an in-flight transcription's disposables
+// (same pattern as UrgramStudioImportPickerDelegate.active).
+private final class UrgramTranscriptionSession {
+    static var active: UrgramTranscriptionSession?
+    let disposable = MetaDisposable()
+    let fetchDisposable = MetaDisposable()
+}
+
+// URGRAM (voice-to-text): transcribes a voice/audio message on-device.
+// The file is fetched through the engine's media-resource funnel
+// (fetchedResource starts the download; the data signal then emits the
+// completed resource), voice (Opus) files are converted to AAC exactly like
+// ChatMessageInteractiveFileNode's local transcription, and
+// LocalAudioTranscription (Speech framework) performs the recognition —
+// it requests speech authorization on first use and requires on-device
+// recognition whenever the recognizer supports it. The result is stored
+// through the engine (Telegram's own transcription UI can then show it)
+// and presented in an alert with a Copy action.
+private func urgramTranscribeMessage(context: AccountContext, message: Message, file: TelegramMediaFile, isArabic: Bool) {
+    let session = UrgramTranscriptionSession()
+    UrgramTranscriptionSession.active = session
+
+    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+    let appLocale = presentationData.strings.baseLanguageCode
+
+    session.fetchDisposable.set(context.engine.resources.fetchedResource(resource: EngineMediaResource(file.resource)).start())
+
+    let signal = context.engine.resources.data(id: EngineMediaResource.Id(file.resource.id))
+    |> filter { data in
+        return data.isComplete
+    }
+    |> take(1)
+    |> mapToSignal { data -> Signal<String?, NoError> in
+        if file.isVoice {
+            return convertOpusToAAC(sourcePath: data.path, allocateTempFile: {
+                return EngineTempBox.shared.tempFile(fileName: "audio.m4a").path
+            })
+        } else {
+            return .single(data.path)
+        }
+    }
+    |> mapToSignal { path -> Signal<LocallyTranscribedAudio?, NoError> in
+        guard let path = path else {
+            return .single(nil)
+        }
+        return transcribeAudio(path: path, appLocale: appLocale)
+    }
+    |> deliverOnMainQueue
+
+    session.disposable.set(signal.start(next: { result in
+        UrgramTranscriptionSession.active = nil
+        session.fetchDisposable.dispose()
+        if let result = result, !result.text.isEmpty {
+            let _ = context.engine.messages.storeLocallyTranscribedAudio(messageId: message.id, text: result.text, isFinal: result.isFinal, error: nil).startStandalone()
+            let alert = textAlertController(context: context, title: isArabic ? "نص الرسالة الصوتية" : "Voice Transcript", text: result.text, actions: [
+                TextAlertAction(type: .defaultAction, title: isArabic ? "نسخ" : "Copy", action: {
+                    UIPasteboard.general.string = result.text
+                }),
+                TextAlertAction(type: .genericAction, title: presentationData.strings.Common_OK, action: {})
+            ], actionLayout: .horizontal)
+            context.sharedContext.mainWindow?.present(alert, on: .root)
+        } else {
+            let alert = textAlertController(context: context, title: isArabic ? "تحويل الصوت إلى نص" : "Transcribe", text: isArabic ? "تعذّر تحويل هذا الصوت إلى نص على الجهاز." : "This audio could not be transcribed on this device.", actions: [
+                TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})
+            ], actionLayout: .horizontal)
+            context.sharedContext.mainWindow?.present(alert, on: .root)
+        }
+    }))
 }
 
 func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState: ChatPresentationInterfaceState, context: AccountContext, messages: [EngineRawMessage], controllerInteraction: ChatControllerInteraction?, selectAll: Bool, interfaceInteraction: ChatPanelInterfaceInteraction?, readStats: MessageReadStats? = nil, messageNode: ChatMessageItemView? = nil) -> Signal<ContextController.Items, NoError> {
@@ -1551,6 +1623,34 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             TextAlertAction(type: .defaultAction, title: strings.Common_Cancel, action: {})
                         ], actionLayout: .vertical)
                         context.sharedContext.mainWindow?.present(alert, on: .root)
+                    })))
+                }
+
+                // URGRAM (one-tap save): forward this message to Saved
+                // Messages through the same enqueueMessages forward funnel
+                // ChatControllerForwardMessages uses for its saved-messages
+                // flow. Secret chats are excluded (their messages must not
+                // leave the chat), as is Saved Messages itself.
+                if message.id.peerId.namespace != Namespaces.Peer.SecretChat && message.id.peerId != context.account.peerId {
+                    actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.primaryComponent.languageCode.hasPrefix("ar") ? "حفظ في المحفوظة" : "Save to Saved Messages", icon: { _ in
+                        return nil
+                    }, action: { _, f in
+                        let mappedMessages: [EnqueueMessage] = [.forward(source: message.id, threadId: nil, grouping: .auto, attributes: [], correlationId: Int64.random(in: Int64.min ... Int64.max))]
+                        let _ = (enqueueMessages(account: context.account, peerId: context.account.peerId, messages: mappedMessages)
+                        |> deliverOnMainQueue).startStandalone()
+                        controllerInteraction.displayUndo(.forward(savedMessages: true, text: chatPresentationInterfaceState.strings.Conversation_ForwardTooltip_SavedMessages_One))
+                        f(.default)
+                    })))
+                }
+
+                // URGRAM (voice-to-text): transcribe a voice/audio message
+                // on-device (see urgramTranscribeMessage).
+                if let audioFile = message.media.compactMap({ $0 as? TelegramMediaFile }).first(where: { $0.isVoice || $0.isMusic }) {
+                    actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.primaryComponent.languageCode.hasPrefix("ar") ? "تحويل الصوت إلى نص" : "Transcribe", icon: { _ in
+                        return nil
+                    }, action: { _, f in
+                        f(.default)
+                        urgramTranscribeMessage(context: context, message: message, file: audioFile, isArabic: chatPresentationInterfaceState.strings.primaryComponent.languageCode.hasPrefix("ar"))
                     })))
                 }
 
