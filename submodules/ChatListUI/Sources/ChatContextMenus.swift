@@ -409,7 +409,23 @@ func chatContextMenuItems(context: AccountContext, peerId: EnginePeer.Id, promoI
                                     }
                                 })))
                             }
-                            
+
+                            // URGRAM (hidden chats): hide this chat from the
+                            // main chat list; it stays reachable from the
+                            // lock-gated Hidden Chats screen in Urgram
+                            // Settings (filter lives in ChatListNode).
+                            if !isSavedMessages {
+                                items.append(.action(ContextMenuActionItem(text: strings.primaryComponent.languageCode.hasPrefix("ar") ? "إخفاء المحادثة" : "Hide Chat", icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Archive"), color: theme.contextMenu.primaryColor) }, action: { _, f in
+                                    UrgramSettingsStore.shared.update { settings in
+                                        let packedId = peerId.toInt64()
+                                        if !settings.hiddenPeerIds.contains(packedId) {
+                                            settings.hiddenPeerIds.append(packedId)
+                                        }
+                                    }
+                                    f(.default)
+                                })))
+                            }
+
                             items.append(.action(ContextMenuActionItem(text: isPinned ? strings.ChatList_Context_Unpin : strings.ChatList_Context_Pin, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: isPinned ? "Chat/Context Menu/Unpin" : "Chat/Context Menu/Pin"), color: theme.contextMenu.primaryColor) }, action: { c, f in
                                 let _ = (context.engine.peers.toggleItemPinned(location: location, itemId: .peer(peerId))
                                          |> deliverOnMainQueue).startStandalone(next: { result in

@@ -8,6 +8,7 @@ import TelegramUIPreferences
 import ItemListUI
 import PresentationDataUtils
 import AccountContext
+import LocalAuthentication
 
 // URGRAM: the single dedicated settings screen for all Urgram fork features
 // (placement rule: every feature control lives here, never scattered through
@@ -32,6 +33,7 @@ private final class UrgramSettingsControllerArguments {
     let openArchive: () -> Void
     let openBookmarks: () -> Void
     let openTemplates: () -> Void
+    let openHiddenChats: () -> Void
     let cycleAutoArchive: () -> Void
     let markAllChatsAsRead: () -> Void
 
@@ -43,6 +45,7 @@ private final class UrgramSettingsControllerArguments {
         openArchive: @escaping () -> Void,
         openBookmarks: @escaping () -> Void,
         openTemplates: @escaping () -> Void,
+        openHiddenChats: @escaping () -> Void,
         cycleAutoArchive: @escaping () -> Void,
         markAllChatsAsRead: @escaping () -> Void
     ) {
@@ -53,6 +56,7 @@ private final class UrgramSettingsControllerArguments {
         self.openArchive = openArchive
         self.openBookmarks = openBookmarks
         self.openTemplates = openTemplates
+        self.openHiddenChats = openHiddenChats
         self.cycleAutoArchive = cycleAutoArchive
         self.markAllChatsAsRead = markAllChatsAsRead
     }
@@ -104,6 +108,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
     case autoReplyEnabled(Bool)
     case openTemplates(Int)
     case autoArchive(Int)
+    case openHiddenChats(Int)
     case chatsFooter
 
     case mediaHeader
@@ -141,7 +146,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return UrgramSettingsSection.privacy.rawValue
         case .contentHeader, .saveRestrictedBypass, .keepDeletedMessages, .keepEditedMessages, .openArchive, .openBookmarks, .hideSponsored, .keywordFiltersEnabled, .contentFooter:
             return UrgramSettingsSection.content.rawValue
-        case .chatsHeader, .hideStoriesBar, .disableStories, .foldersAtBottom, .doubleTapEditOwnMessages, .mentionAll, .autoReplyEnabled, .openTemplates, .autoArchive, .chatsFooter:
+        case .chatsHeader, .hideStoriesBar, .disableStories, .foldersAtBottom, .doubleTapEditOwnMessages, .mentionAll, .autoReplyEnabled, .openTemplates, .autoArchive, .openHiddenChats, .chatsFooter:
             return UrgramSettingsSection.chats.rawValue
         case .mediaHeader, .defaultHDPhotos, .downloadBoost, .voiceNoiseSuppression:
             return UrgramSettingsSection.media.rawValue
@@ -190,7 +195,8 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
         case .autoReplyEnabled: return 37
         case .openTemplates: return 38
         case .autoArchive: return 39
-        case .chatsFooter: return 40
+        case .openHiddenChats: return 40
+        case .chatsFooter: return 42
         case .mediaHeader: return 45
         case .defaultHDPhotos: return 46
         case .downloadBoost: return 47
@@ -300,6 +306,10 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Auto-Archive Inactive Chats", "أرشفة المحادثات الخاملة تلقائيًا"), label: label, sectionId: self.section, style: .blocks, action: {
                 arguments.cycleAutoArchive()
             })
+        case let .openHiddenChats(count):
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Hidden Chats", "المحادثات المخفية"), label: count > 0 ? "\(count)" : "", sectionId: self.section, style: .blocks, action: {
+                arguments.openHiddenChats()
+            })
         case .chatsFooter:
             return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Some chat options take effect the next time the chat is opened.", "بعض خيارات المحادثة تسري عند فتح المحادثة في المرة القادمة.")), sectionId: self.section)
         case .mediaHeader:
@@ -403,6 +413,7 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
     entries.append(.doubleTapEditOwnMessages(settings.doubleTapEditOwnMessages))
     entries.append(.openTemplates(settings.replyTemplates.count))
     entries.append(.autoArchive(settings.autoArchiveInactiveDays))
+    entries.append(.openHiddenChats(settings.hiddenPeerIds.count))
     entries.append(.chatsFooter)
 
     entries.append(.mediaHeader)
@@ -509,6 +520,27 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
         },
         openTemplates: {
             pushImpl?(urgramTemplatesSettingsController(context: context))
+        },
+        openHiddenChats: {
+            // URGRAM (hidden chats): Face ID / device-passcode gate before
+            // the hidden-chats list is shown. If the device has no passcode
+            // or biometrics configured there is nothing to gate with, so the
+            // list opens directly.
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
+            let laContext = LAContext()
+            var laError: NSError?
+            if laContext.canEvaluatePolicy(.deviceOwnerAuthentication, error: &laError) {
+                laContext.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: isArabic ? "عرض المحادثات المخفية" : "View hidden chats") { success, _ in
+                    Queue.mainQueue().async {
+                        if success {
+                            pushImpl?(urgramHiddenChatsController(context: context))
+                        }
+                    }
+                }
+            } else {
+                pushImpl?(urgramHiddenChatsController(context: context))
+            }
         },
         cycleAutoArchive: {
             UrgramSettingsStore.shared.update { settings in

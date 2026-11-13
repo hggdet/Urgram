@@ -160,6 +160,10 @@ public struct UrgramSettings: Codable, Equatable {
     public var homeHideEditButton: Bool
     public var homeHideComposeButton: Bool
     public var homeHideStoryButton: Bool
+    // Hidden chats: peer ids (packed via PeerId.toInt64()) the user hid from
+    // the main chat list. Filtered at ChatListNode's entry filtering and
+    // managed from the lock-gated "Hidden Chats" screen in Urgram Settings.
+    public var hiddenPeerIds: [Int64]
 
     public init(
         ghostHideRead: Bool,
@@ -199,7 +203,8 @@ public struct UrgramSettings: Codable, Equatable {
         autoArchiveInactiveDays: Int,
         homeHideEditButton: Bool,
         homeHideComposeButton: Bool,
-        homeHideStoryButton: Bool
+        homeHideStoryButton: Bool,
+        hiddenPeerIds: [Int64]
     ) {
         self.ghostHideRead = ghostHideRead
         self.ghostHideTyping = ghostHideTyping
@@ -239,6 +244,7 @@ public struct UrgramSettings: Codable, Equatable {
         self.homeHideEditButton = homeHideEditButton
         self.homeHideComposeButton = homeHideComposeButton
         self.homeHideStoryButton = homeHideStoryButton
+        self.hiddenPeerIds = hiddenPeerIds
     }
 
     public static var defaultSettings: UrgramSettings {
@@ -280,7 +286,8 @@ public struct UrgramSettings: Codable, Equatable {
             autoArchiveInactiveDays: 0,
             homeHideEditButton: false,
             homeHideComposeButton: false,
-            homeHideStoryButton: false
+            homeHideStoryButton: false,
+            hiddenPeerIds: []
         )
     }
 
@@ -325,6 +332,7 @@ public struct UrgramSettings: Codable, Equatable {
         self.homeHideEditButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideEditButton") ?? false
         self.homeHideComposeButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideComposeButton") ?? false
         self.homeHideStoryButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideStoryButton") ?? false
+        self.hiddenPeerIds = try container.decodeIfPresent([Int64].self, forKey: "hiddenPeerIds") ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -368,6 +376,7 @@ public struct UrgramSettings: Codable, Equatable {
         try container.encode(self.homeHideEditButton, forKey: "homeHideEditButton")
         try container.encode(self.homeHideComposeButton, forKey: "homeHideComposeButton")
         try container.encode(self.homeHideStoryButton, forKey: "homeHideStoryButton")
+        try container.encode(self.hiddenPeerIds, forKey: "hiddenPeerIds")
     }
 }
 

@@ -1099,6 +1099,22 @@ func infoItems(
             items[.peerInfo]!.append(PeerInfoScreenDisclosureItem(id: "urgram-export-chat", text: presentationData.strings.primaryComponent.languageCode.hasPrefix("ar") ? "تصدير إلى ملف (أورغرام)" : "Export to File (Urgram)", action: {
                 urgramExportChat(context: context, peerId: exportPeerId, peerTitle: exportPeerTitle, interaction: interaction)
             }))
+
+            // URGRAM (hidden chats): hide this chat from the main chat list
+            // (or unhide it). The list itself lives behind Face ID / passcode
+            // in Urgram Settings.
+            let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
+            let packedPeerId = exportPeerId.toInt64()
+            let isHidden = UrgramSettingsStore.shared.current.hiddenPeerIds.contains(packedPeerId)
+            items[.peerInfo]!.append(PeerInfoScreenDisclosureItem(id: "urgram-hide-chat", text: isHidden ? (isArabic ? "إظهار المحادثة (أورغرام)" : "Unhide Chat (Urgram)") : (isArabic ? "إخفاء المحادثة (أورغرام)" : "Hide Chat (Urgram)"), action: {
+                UrgramSettingsStore.shared.update { settings in
+                    if settings.hiddenPeerIds.contains(packedPeerId) {
+                        settings.hiddenPeerIds.removeAll(where: { $0 == packedPeerId })
+                    } else {
+                        settings.hiddenPeerIds.append(packedPeerId)
+                    }
+                }
+            }))
         }
     }
 
