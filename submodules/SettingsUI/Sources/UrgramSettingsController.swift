@@ -28,17 +28,20 @@ private final class UrgramSettingsControllerArguments {
     let update: (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void
     let openFonts: () -> Void
     let openProxies: () -> Void
+    let openArchive: () -> Void
     let markAllChatsAsRead: () -> Void
 
     init(
         update: @escaping (WritableKeyPath<UrgramSettings, Bool>, Bool) -> Void,
         openFonts: @escaping () -> Void,
         openProxies: @escaping () -> Void,
+        openArchive: @escaping () -> Void,
         markAllChatsAsRead: @escaping () -> Void
     ) {
         self.update = update
         self.openFonts = openFonts
         self.openProxies = openProxies
+        self.openArchive = openArchive
         self.markAllChatsAsRead = markAllChatsAsRead
     }
 }
@@ -73,6 +76,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
     case saveRestrictedBypass(Bool)
     case keepDeletedMessages(Bool)
     case keepEditedMessages(Bool)
+    case openArchive
     case hideSponsored(Bool)
     case keywordFiltersEnabled(Bool)
     case contentFooter
@@ -108,6 +112,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
 
     case actionsHeader
     case markAllRead
+    case accountId(Int64)
 
     var section: ItemListSectionId {
         switch self {
@@ -115,7 +120,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return UrgramSettingsSection.ghost.rawValue
         case .privacyHeader, .streamerMode, .secretChatScreenshotSilent, .hidePhoneInProfile:
             return UrgramSettingsSection.privacy.rawValue
-        case .contentHeader, .saveRestrictedBypass, .keepDeletedMessages, .keepEditedMessages, .hideSponsored, .keywordFiltersEnabled, .contentFooter:
+        case .contentHeader, .saveRestrictedBypass, .keepDeletedMessages, .keepEditedMessages, .openArchive, .hideSponsored, .keywordFiltersEnabled, .contentFooter:
             return UrgramSettingsSection.content.rawValue
         case .chatsHeader, .sendWithEnter, .hideStoriesBar, .disableStories, .foldersAtBottom, .doubleTapEditOwnMessages, .mentionAll, .autoReplyEnabled, .chatsFooter:
             return UrgramSettingsSection.chats.rawValue
@@ -129,7 +134,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return UrgramSettingsSection.font.rawValue
         case .proxyHeader, .proxies:
             return UrgramSettingsSection.proxy.rawValue
-        case .actionsHeader, .markAllRead:
+        case .actionsHeader, .markAllRead, .accountId:
             return UrgramSettingsSection.actions.rawValue
         }
     }
@@ -150,9 +155,10 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
         case .saveRestrictedBypass: return 21
         case .keepDeletedMessages: return 22
         case .keepEditedMessages: return 23
-        case .hideSponsored: return 24
-        case .keywordFiltersEnabled: return 25
-        case .contentFooter: return 26
+        case .openArchive: return 24
+        case .hideSponsored: return 25
+        case .keywordFiltersEnabled: return 26
+        case .contentFooter: return 27
         case .chatsHeader: return 30
         case .sendWithEnter: return 31
         case .hideStoriesBar: return 32
@@ -178,6 +184,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
         case .proxies: return 76
         case .actionsHeader: return 80
         case .markAllRead: return 81
+        case .accountId: return 82
         }
     }
 
@@ -222,12 +229,16 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Keep Deleted Messages", "الاحتفاظ بالرسائل المحذوفة"), value: value, keyPath: \.keepDeletedMessages)
         case let .keepEditedMessages(value):
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Keep Original Text of Edited Messages", "الاحتفاظ بالنص الأصلي للرسائل المعدّلة"), value: value, keyPath: \.keepEditedMessages)
+        case .openArchive:
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Deleted Messages Archive", "أرشيف الرسائل المحذوفة"), label: "", sectionId: self.section, style: .blocks, action: {
+                arguments.openArchive()
+            })
         case let .hideSponsored(value):
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Hide Sponsored Messages", "إخفاء الرسائل المموّلة"), value: value, keyPath: \.hideSponsored)
         case let .keywordFiltersEnabled(value):
             return self.switchItem(presentationData: presentationData, arguments: arguments, title: urgramText(presentationData, "Keyword Filters", "فلاتر الكلمات"), value: value, keyPath: \.keywordFiltersEnabled)
         case .contentFooter:
-            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Deleted messages are archived only on this device. A viewer for the archive is not included yet.", "تُحفظ الرسائل المحذوفة على هذا الجهاز فقط. عارض الأرشيف غير مضمّن بعد.")), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Deleted messages are kept only on this device — open the archive above to read them.", "تُحفظ الرسائل المحذوفة على هذا الجهاز فقط — افتح الأرشيف أعلاه لقراءتها.")), sectionId: self.section)
         case .chatsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Chats", "المحادثات"), sectionId: self.section)
         case let .sendWithEnter(value):
@@ -284,11 +295,13 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
             return ItemListActionItem(presentationData: presentationData, title: urgramText(presentationData, "Mark All Chats as Read", "تعليم كل المحادثات كمقروءة"), kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.markAllChatsAsRead()
             })
+        case let .accountId(id):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Your Telegram ID: \(id)", "معرّف حسابك (ID): \(id)")), sectionId: self.section)
         }
     }
 }
 
-private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic: Bool) -> [UrgramSettingsControllerEntry] {
+private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic: Bool, accountId: Int64) -> [UrgramSettingsControllerEntry] {
     var entries: [UrgramSettingsControllerEntry] = []
 
     entries.append(.ghostHeader)
@@ -307,6 +320,7 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
     entries.append(.saveRestrictedBypass(settings.saveRestrictedBypass))
     entries.append(.keepDeletedMessages(settings.keepDeletedMessages))
     entries.append(.keepEditedMessages(settings.keepEditedMessages))
+    entries.append(.openArchive)
     entries.append(.hideSponsored(settings.hideSponsored))
     entries.append(.keywordFiltersEnabled(settings.keywordFiltersEnabled))
     entries.append(.contentFooter)
@@ -342,6 +356,7 @@ private func urgramSettingsControllerEntries(settings: UrgramSettings, isArabic:
 
     entries.append(.actionsHeader)
     entries.append(.markAllRead)
+    entries.append(.accountId(accountId))
 
     return entries
 }
@@ -403,6 +418,9 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
         openProxies: {
             pushImpl?(urgramProxySettingsController(context: context))
         },
+        openArchive: {
+            pushImpl?(urgramArchiveController(context: context))
+        },
         markAllChatsAsRead: {
             let _ = context.engine.messages.markAllChatsAsRead().startStandalone()
         }
@@ -419,7 +437,7 @@ public func urgramSettingsController(context: AccountContext) -> ViewController 
         presentationData = presentationData.withUpdated(theme: updatedTheme)
 
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("Urgram"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: urgramSettingsControllerEntries(settings: settings, isArabic: presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")), style: .blocks, animateChanges: true)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: urgramSettingsControllerEntries(settings: settings, isArabic: presentationData.strings.primaryComponent.languageCode.hasPrefix("ar"), accountId: context.account.peerId.toInt64()), style: .blocks, animateChanges: true)
 
         return (controllerState, (listState, arguments))
     }

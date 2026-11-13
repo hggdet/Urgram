@@ -69,6 +69,13 @@ public func urgramArchivedMessages(transaction: Transaction) -> [UrgramArchivedM
     return transaction.getPreferencesEntry(key: urgramMessageArchivePreferencesKey)?.get([UrgramArchivedMessage].self) ?? []
 }
 
+// URGRAM: empties the archive (used by the archive viewer's Clear action).
+public func urgramClearMessageArchive(transaction: Transaction) {
+    if let entry = PreferencesEntry([UrgramArchivedMessage]()) {
+        transaction.setPreferencesEntry(key: urgramMessageArchivePreferencesKey, value: entry)
+    }
+}
+
 // URGRAM: called from `_internal_deleteMessages` before the messages are
 // removed, so their text survives locally.
 func urgramArchiveMessagesBeforeDeletion(transaction: Transaction, ids: [MessageId]) {
