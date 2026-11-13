@@ -22,6 +22,7 @@ package_group(
         "//submodules/PassportUI",
         "//submodules/PhotoResources",
         "//submodules/PremiumUI",
+        "//submodules/SettingsUI",
         "//submodules/ShareController",
         "//submodules/ShareItems",
         "//submodules/StatisticsUI",
