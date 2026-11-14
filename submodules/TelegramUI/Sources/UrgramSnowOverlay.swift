@@ -154,8 +154,8 @@ final class UrgramSnowView: UIView {
             }
             let target = CGFloat(max(-120.0, min(120.0, -gravity.x * 120.0)))
             self.smoothedTiltAcceleration += (target - self.smoothedTiltAcceleration) * 0.35
-            self.smallCell?.xAcceleration = Float(self.smoothedTiltAcceleration)
-            self.largeCell?.xAcceleration = Float(self.smoothedTiltAcceleration * 0.7)
+            self.smallCell?.xAcceleration = self.smoothedTiltAcceleration
+            self.largeCell?.xAcceleration = self.smoothedTiltAcceleration * 0.7
         }
     }
 

@@ -121,7 +121,7 @@ private func urgramHandleAutoReply(context: AccountContext, messages: [Message])
             continue
         }
         // Telegram service notifications (777000) and verification codes.
-        if authorId._internalGetInt64Value() == 777000 {
+        if authorId.toInt64() == 777000 {
             continue
         }
         guard let author = message.peers[authorId] as? TelegramUser, author.botInfo == nil else {
