@@ -85,6 +85,16 @@ private func urgramPresentationFromCache(context: AccountContext, entry: UrgramI
 }
 
 func urgramIdentityPresentationSignal(context: AccountContext, ownerPeerId: PeerId) -> Signal<UrgramIdentityPresentation?, NoError> {
+    // URGRAM (build 29): the identity cache store is attached and seeded
+    // lazily here, on first use — NOT at app launch (the launch-time
+    // attach was the prime suspect for the build 26/27 login crash).
+    return UrgramIdentityCacheStore.shared.attachAndSeedOnce(accountManager: context.sharedContext.accountManager)
+    |> mapToSignal { _ -> Signal<UrgramIdentityPresentation?, NoError> in
+        return urgramIdentityPresentationSignalSeeded(context: context, ownerPeerId: ownerPeerId)
+    }
+}
+
+private func urgramIdentityPresentationSignalSeeded(context: AccountContext, ownerPeerId: PeerId) -> Signal<UrgramIdentityPresentation?, NoError> {
     let ownerUserId = ownerPeerId.id._internalGetInt64Value()
     let cachedEntry = UrgramIdentityCacheStore.shared.entry(for: ownerUserId)
     let now = Date().timeIntervalSince1970

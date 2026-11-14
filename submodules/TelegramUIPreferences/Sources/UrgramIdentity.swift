@@ -189,14 +189,20 @@ public func updateUrgramIdentityCacheInteractively(accountManager: AccountManage
     }
 }
 
-/// In-memory mirror of the identity cache, seeded and kept in sync from
-/// SharedAccountContext exactly like UrgramSettingsStore.
+/// In-memory mirror of the identity cache. Build 29: attached and seeded
+/// LAZILY on first use (profile read path, identity editor publish/delete)
+/// instead of at SharedAccountContext launch — the launch-time attach +
+/// standing subscription restored in builds 24–26 is the prime suspect
+/// for the build 26/27 login-completion crash, and build 28 (which
+/// removed it) does not crash. `setEntry` persists through shared data on
+/// its own, so no standing subscription is needed.
 public final class UrgramIdentityCacheStore {
     public static let shared = UrgramIdentityCacheStore()
 
     private let value = Atomic<UrgramIdentityCache>(value: UrgramIdentityCache.empty)
     private var accountManager: AccountManager<TelegramAccountManagerTypes>?
     private var updateDisposable: Disposable?
+    private var didSeed = false
 
     public var current: UrgramIdentityCache {
         return self.value.with { $0 }
@@ -211,6 +217,27 @@ public final class UrgramIdentityCacheStore {
 
     public func attach(accountManager: AccountManager<TelegramAccountManagerTypes>) {
         self.accountManager = accountManager
+    }
+
+    // URGRAM (build 29): attach (idempotent) and seed the in-memory cache
+    // from shared data exactly once per process. Callers chain their
+    // cache-first work after this signal so the first lookup of a cold
+    // process sees the persisted cache, and later `setEntry` writes have
+    // an account manager to persist through.
+    public func attachAndSeedOnce(accountManager: AccountManager<TelegramAccountManagerTypes>) -> Signal<Void, NoError> {
+        self.attach(accountManager: accountManager)
+        if self.didSeed {
+            return .single(Void())
+        }
+        self.didSeed = true
+        return accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.urgramIdentityCache])
+        |> take(1)
+        |> map { sharedData -> Void in
+            if let cache = sharedData.entries[ApplicationSpecificSharedDataKeys.urgramIdentityCache]?.get(UrgramIdentityCache.self) {
+                self.applyExternal(cache)
+            }
+            return Void()
+        }
     }
 
     public func applyExternal(_ cache: UrgramIdentityCache) {

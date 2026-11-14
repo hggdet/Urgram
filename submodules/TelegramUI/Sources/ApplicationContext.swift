@@ -341,12 +341,24 @@ final class AuthorizedApplicationContext {
         }))
 
         let engine = context.engine
-        // URGRAM DIAGNOSTIC (build 27): the auto-reply and snow subscriptions
-        // are disabled to bisect the build-26 launch crash on the user's
-        // device (app dies seconds after login with every Urgram feature
-        // toggle OFF). Handlers and overlay code stay compiled; only the
-        // two init-time subscriptions are disconnected. Restore after the
-        // crash log or the bisection identifies the culprit.
+        // URGRAM (auto-reply): a parallel subscription on the same
+        // incoming-message funnel that drives in-app notifications.
+        self.urgramAutoReplyDisposable.set((context.account.stateManager.notificationMessages
+        |> deliverOn(Queue.mainQueue())).start(next: { messageList in
+            for (messages, _, _, _) in messageList {
+                urgramHandleAutoReply(context: context, messages: messages)
+            }
+        }))
+
+        // URGRAM (ambience — snow): attach/detach the window-level snow
+        // overlay as the setting changes.
+        self.urgramSnowDisposable.set((UrgramSettingsStore.shared.settingsSignal
+        |> deliverOn(Queue.mainQueue())).start(next: { [weak self] settings in
+            guard let self else {
+                return
+            }
+            self.urgramSnowManager.apply(settings: settings, containerView: context.sharedContext.mainWindow?.hostView.containerView)
+        }))
 
         self.notificationMessagesDisposable.set((context.account.stateManager.notificationMessages
         |> mapToSignal { messageList in

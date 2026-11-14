@@ -132,6 +132,16 @@ private func urgramFetchPostedMessage(context: AccountContext, messageId: Messag
 /// updated immediately so the user's own profile reflects it without
 /// waiting for the 24h cache window.
 private func urgramPublishIdentity(context: AccountContext, card: UrgramIdentityCard, newBanner: (data: Data, dimensions: PixelDimensions)?, removeBanner: Bool) -> Signal<UrgramPublishResult, NoError> {
+    // URGRAM (build 29): lazily attach + seed the identity cache store so
+    // the success path's setEntry actually persists (no launch-time
+    // attach exists anymore — see UrgramIdentityCacheStore).
+    return UrgramIdentityCacheStore.shared.attachAndSeedOnce(accountManager: context.sharedContext.accountManager)
+    |> mapToSignal { _ -> Signal<UrgramPublishResult, NoError> in
+        return urgramPublishIdentitySeeded(context: context, card: card, newBanner: newBanner, removeBanner: removeBanner)
+    }
+}
+
+private func urgramPublishIdentitySeeded(context: AccountContext, card: UrgramIdentityCard, newBanner: (data: Data, dimensions: PixelDimensions)?, removeBanner: Bool) -> Signal<UrgramPublishResult, NoError> {
     let ownerPeerId = context.account.peerId
     let ownerUserId = ownerPeerId.id._internalGetInt64Value()
     let recordText = UrgramIdentityRegistry.recordText(ownerUserId: ownerUserId, card: card)
@@ -221,6 +231,15 @@ private func urgramPublishIdentity(context: AccountContext, card: UrgramIdentity
 /// Deletes every valid own record from the registry. Returns false when
 /// there was nothing to delete or a step failed.
 private func urgramDeleteIdentity(context: AccountContext) -> Signal<Bool, NoError> {
+    // URGRAM (build 29): lazily attach + seed the identity cache store so
+    // the negative-cache setEntry below actually persists.
+    return UrgramIdentityCacheStore.shared.attachAndSeedOnce(accountManager: context.sharedContext.accountManager)
+    |> mapToSignal { _ -> Signal<Bool, NoError> in
+        return urgramDeleteIdentitySeeded(context: context)
+    }
+}
+
+private func urgramDeleteIdentitySeeded(context: AccountContext) -> Signal<Bool, NoError> {
     let ownerUserId = context.account.peerId.id._internalGetInt64Value()
 
     return urgramResolveRegistryPeerId(context: context)
