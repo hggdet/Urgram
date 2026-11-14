@@ -91,38 +91,60 @@ private func urgramSearchValidRecords(context: AccountContext, registryPeerId: P
     }
 }
 
-private func urgramConfirmPublished(context: AccountContext, registryPeerId: PeerId, ownerUserId: Int64, recordText: String, attemptsLeft: Int) -> Signal<Message?, NoError> {
-    return urgramSearchValidRecords(context: context, registryPeerId: registryPeerId, ownerUserId: ownerUserId)
-    |> mapToSignal { records -> Signal<Message?, NoError> in
-        if let found = records.first(where: { $0.text == recordText }) {
-            return .single(found)
+// URGRAM (build 29): step-specific publish outcome, so the editor can say
+// WHERE publishing failed instead of one generic "check your connection".
+private enum UrgramPublishFailure {
+    case resolve
+    case join
+    case post
+}
+
+private enum UrgramPublishResult {
+    case success(bannerMessageId: Int32?)
+    case failure(UrgramPublishFailure)
+}
+
+/// Fetches the just-posted registry message by its id — the publish
+/// confirmation (build 29: this replaces the old confirm-by-search, whose
+/// server-side search indexing lag and byte-for-byte caption comparison
+/// reported "Publishing failed" even when the post had landed). Retries
+/// briefly while the message and its media propagate locally.
+private func urgramFetchPostedMessage(context: AccountContext, messageId: MessageId, attemptsLeft: Int) -> Signal<EngineMessage?, NoError> {
+    return context.engine.data.get(TelegramEngine.EngineData.Item.Messages.Message(id: messageId))
+    |> take(1)
+    |> mapToSignal { message -> Signal<EngineMessage?, NoError> in
+        if let message = message {
+            return .single(message)
         }
         if attemptsLeft <= 0 {
             return .single(nil)
         }
-        return Signal<Message?, NoError>.complete()
-        |> delay(3.0, queue: Queue.concurrentDefaultQueue())
-        |> then(urgramConfirmPublished(context: context, registryPeerId: registryPeerId, ownerUserId: ownerUserId, recordText: recordText, attemptsLeft: attemptsLeft - 1))
+        return Signal<EngineMessage?, NoError>.complete()
+        |> delay(2.0, queue: Queue.concurrentDefaultQueue())
+        |> then(urgramFetchPostedMessage(context: context, messageId: messageId, attemptsLeft: attemptsLeft - 1))
     }
 }
 
-/// Publishes the identity record. On success the resolved-record cache is
+/// Publishes the identity record. Success is defined by the post itself:
+/// `enqueueMessages` returning a real message id (build 29 — previously
+/// success required a server search to find a byte-identical caption,
+/// which lagged and mismatched). On success the resolved-record cache is
 /// updated immediately so the user's own profile reflects it without
 /// waiting for the 24h cache window.
-private func urgramPublishIdentity(context: AccountContext, card: UrgramIdentityCard, newBanner: (data: Data, dimensions: PixelDimensions)?, removeBanner: Bool) -> Signal<Bool, NoError> {
+private func urgramPublishIdentity(context: AccountContext, card: UrgramIdentityCard, newBanner: (data: Data, dimensions: PixelDimensions)?, removeBanner: Bool) -> Signal<UrgramPublishResult, NoError> {
     let ownerPeerId = context.account.peerId
     let ownerUserId = ownerPeerId.id._internalGetInt64Value()
     let recordText = UrgramIdentityRegistry.recordText(ownerUserId: ownerUserId, card: card)
 
     return urgramResolveRegistryPeerId(context: context)
-    |> mapToSignal { registryPeerId -> Signal<Bool, NoError> in
+    |> mapToSignal { registryPeerId -> Signal<UrgramPublishResult, NoError> in
         guard let registryPeerId = registryPeerId else {
-            return .single(false)
+            return .single(.failure(.resolve))
         }
         return urgramJoinRegistry(context: context, registryPeerId: registryPeerId)
-        |> mapToSignal { joined -> Signal<Bool, NoError> in
+        |> mapToSignal { joined -> Signal<UrgramPublishResult, NoError> in
             guard joined else {
-                return .single(false)
+                return .single(.failure(.join))
             }
             let existingBannerSignal: Signal<(Message, TelegramMediaImage)?, NoError>
             if newBanner == nil && !removeBanner {
@@ -141,14 +163,14 @@ private func urgramPublishIdentity(context: AccountContext, card: UrgramIdentity
             } else {
                 existingBannerSignal = .single(nil)
             }
-            let publishSignal = existingBannerSignal
-            |> mapToSignal { existingBanner -> Signal<Message?, NoError> in
+            let publishSignal: Signal<UrgramPublishResult, NoError> = existingBannerSignal
+            |> mapToSignal { existingBanner -> Signal<UrgramPublishResult, NoError> in
                 let message: EnqueueMessage
                 if let newBanner = newBanner {
                     let randomId = Int64.random(in: Int64.min ... Int64.max)
                     let tempFile = EngineTempBox.shared.tempFile(fileName: "urgram-banner-\(randomId).jpg")
                     guard (try? newBanner.data.write(to: URL(fileURLWithPath: tempFile.path))) != nil else {
-                        return .single(nil)
+                        return .single(.failure(.post))
                     }
                     let resource = LocalFileReferenceMediaResource(localFilePath: tempFile.path, randomId: randomId)
                     let representation = TelegramMediaImageRepresentation(dimensions: newBanner.dimensions, resource: resource, progressiveSizes: [], immediateThumbnailData: nil, hasVideo: false, isPersonal: false)
@@ -159,27 +181,37 @@ private func urgramPublishIdentity(context: AccountContext, card: UrgramIdentity
                 } else {
                     message = .message(text: recordText, attributes: [], inlineStickers: [:], mediaReference: nil, threadId: nil, replyToMessageId: nil, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: [])
                 }
+                let expectsBanner = newBanner != nil || existingBanner != nil
                 return enqueueMessages(account: context.account, peerId: registryPeerId, messages: [message])
                 |> take(1)
-                |> mapToSignal { _ -> Signal<Message?, NoError> in
-                    return urgramConfirmPublished(context: context, registryPeerId: registryPeerId, ownerUserId: ownerUserId, recordText: recordText, attemptsLeft: 8)
+                |> mapToSignal { ids -> Signal<UrgramPublishResult, NoError> in
+                    guard let postedId = ids.compactMap({ $0 }).first else {
+                        return .single(.failure(.post))
+                    }
+                    // The post landed (a real id came back). Fetch the
+                    // message by id only to learn whether it carries the
+                    // banner image for the cache entry; if the fetch lags
+                    // behind the upload, the sent id is trusted instead.
+                    return urgramFetchPostedMessage(context: context, messageId: postedId, attemptsLeft: 6)
+                    |> map { fetched -> UrgramPublishResult in
+                        let bannerMessageId: Int32?
+                        if let fetched = fetched {
+                            bannerMessageId = fetched.media.contains(where: { $0 is TelegramMediaImage }) ? postedId.id : nil
+                        } else {
+                            bannerMessageId = expectsBanner ? postedId.id : nil
+                        }
+                        UrgramIdentityCacheStore.shared.setEntry(UrgramIdentityCacheEntry(card: card, bannerMessageId: bannerMessageId, fetchedAt: Date().timeIntervalSince1970), for: ownerUserId)
+                        return .success(bannerMessageId: bannerMessageId)
+                    }
                 }
-            }
-            |> map { found -> Bool in
-                if let found = found {
-                    let hasBanner = found.media.contains(where: { $0 is TelegramMediaImage })
-                    UrgramIdentityCacheStore.shared.setEntry(UrgramIdentityCacheEntry(card: card, bannerMessageId: hasBanner ? found.id.id : nil, fetchedAt: Date().timeIntervalSince1970), for: ownerUserId)
-                    return true
-                }
-                return false
             }
             // Whatever happened above, the account leaves the registry
             // group again — its posts persist after leaving.
             return publishSignal
-            |> mapToSignal { success -> Signal<Bool, NoError> in
+            |> mapToSignal { result -> Signal<UrgramPublishResult, NoError> in
                 return urgramLeaveRegistry(context: context, registryPeerId: registryPeerId)
-                |> map { _ -> Bool in
-                    return success
+                |> map { _ -> UrgramPublishResult in
+                    return result
                 }
             }
         }
@@ -604,9 +636,10 @@ public func urgramIdentityController(context: AccountContext) -> ViewController 
             state.statusText = nil
             state.bump()
             state.disposable.set((urgramPublishIdentity(context: context, card: card, newBanner: state.bannerImage, removeBanner: state.bannerRemoved)
-            |> deliverOnMainQueue).start(next: { success in
+            |> deliverOnMainQueue).start(next: { result in
                 state.isBusy = false
-                if success {
+                switch result {
+                case .success:
                     state.statusText = isArabic ? "تم النشر — هويتك ظاهرة الآن لمستخدمي أورغرام." : "Published — your identity is now visible to Urgram users."
                     if state.bannerImage != nil {
                         state.hasExistingBanner = true
@@ -616,8 +649,12 @@ public func urgramIdentityController(context: AccountContext) -> ViewController 
                         state.hasExistingBanner = false
                         state.bannerRemoved = false
                     }
-                } else {
-                    state.statusText = isArabic ? "تعذّر النشر — تحقق من الاتصال وحاول مجددًا." : "Publishing failed — check your connection and try again."
+                case .failure(.resolve):
+                    state.statusText = isArabic ? "تعذّر النشر — لم يتم العثور على مجموعة السجل." : "Publishing failed — the registry group could not be found."
+                case .failure(.join):
+                    state.statusText = isArabic ? "تعذّر النشر — تعذّر الانضمام إلى مجموعة السجل." : "Publishing failed — could not join the registry group."
+                case .failure(.post):
+                    state.statusText = isArabic ? "تعذّر النشر عند خطوة الإرسال — حاول مجددًا." : "Publishing failed at the posting step — try again."
                 }
                 state.bump()
             }))
