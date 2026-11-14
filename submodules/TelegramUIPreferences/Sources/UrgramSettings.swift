@@ -14,8 +14,14 @@ import SwiftSignalKit
 // URGRAM (build 20, Urgram Studio): one saved appearance design. Only
 // parameters that map to real runtime theme fields are stored — see
 // URGRAM.md "Build 20" for the verified mapping and what was excluded.
-// Colors are ARGB UInt32 (same convention as PresentationThemeAccentColor
-// presets). `bubbleColors` empty means "derive outgoing bubble colors from
+// Colors are ARGB values (same convention as PresentationThemeAccentColor
+// presets), stored as Int32 bit patterns (build 29: Postbox's adapted
+// Codable containers natively support only Bool / String / Double / Int32 /
+// Int64 in keyed containers — a UInt32 field encodes as a generic object
+// box whose decode throws, and one throwing field aborted the WHOLE
+// settings decode, resetting every Urgram setting on relaunch). Convert
+// with UInt32(bitPattern:) / Int32(bitPattern:) at color-construction
+// sites. `bubbleColors` empty means "derive outgoing bubble colors from
 // the accent color"; one entry is a solid fill; two entries are a gradient.
 // URGRAM (Studio V2): the design also carries the other verified
 // PresentationThemeSettings parameters — chat/list font sizes
@@ -23,15 +29,66 @@ import SwiftSignalKit
 // nil means the design does not touch font sizes), large emoji, bubble
 // corner merging and the serif message font. All new fields are optional
 // so build 20–23 design files keep decoding unchanged.
+// URGRAM (build 29): fault-isolated field decoding. If one field of a
+// stored blob fails to decode (e.g. a build ≤28 blob whose UInt32 / Int
+// fields the Postbox adapted containers cannot read back), that field
+// alone falls back to its default instead of aborting the whole decode —
+// previously a single bad field made `PreferencesEntry.get` return nil
+// and silently reset ALL Urgram settings on every relaunch.
+private func urgramDecodeField<T>(_ body: () throws -> T?, fallback: T) -> T {
+    do {
+        if let value = try body() {
+            return value
+        }
+    } catch {
+    }
+    return fallback
+}
+
+private func urgramDecodeOptionalField<T>(_ body: () throws -> T?) -> T? {
+    do {
+        return try body()
+    } catch {
+        return nil
+    }
+}
+
+// URGRAM (build 29): one ARGB color field, stored as an Int32 bit pattern.
+// Falls back to reading a legacy UInt32 value (build ≤28 .urgramtheme JSON
+// files store plain unsigned numbers) and converting it, so old exported
+// designs keep their colors.
+private func urgramDecodeArgbField(_ container: KeyedDecodingContainer<StringCodingKey>, _ key: StringCodingKey) -> Int32? {
+    // Each attempt is individually non-fatal: an Int32 read of a legacy
+    // unsigned JSON number throws (out of range), and that must not skip
+    // the UInt32 attempt.
+    if let value = try? container.decodeIfPresent(Int32.self, forKey: key), let value = value {
+        return value
+    }
+    if let legacyValue = try? container.decodeIfPresent(UInt32.self, forKey: key), let legacyValue = legacyValue {
+        return Int32(bitPattern: legacyValue)
+    }
+    return nil
+}
+
+private func urgramDecodeArgbArrayField(_ container: KeyedDecodingContainer<StringCodingKey>, _ key: StringCodingKey) -> [Int32]? {
+    if let values = try? container.decodeIfPresent([Int32].self, forKey: key), let values = values {
+        return values
+    }
+    if let legacyValues = try? container.decodeIfPresent([UInt32].self, forKey: key), let legacyValues = legacyValues {
+        return legacyValues.map { Int32(bitPattern: $0) }
+    }
+    return nil
+}
+
 public struct UrgramThemeDesign: Codable, Equatable {
     public var id: String
     public var name: String
-    public var accentColor: UInt32
-    public var bubbleColors: [UInt32]
+    public var accentColor: Int32
+    public var bubbleColors: [Int32]
     // 0 = keep the theme's default chat wallpaper, 1 = solid color, 2 = gradient
     public var wallpaperMode: Int32
-    public var wallpaperColorA: UInt32
-    public var wallpaperColorB: UInt32
+    public var wallpaperColorA: Int32
+    public var wallpaperColorB: Int32
     public var bubbleRadius: Int32
     public var chatFontSize: Int32?
     public var listFontSize: Int32?
@@ -42,11 +99,11 @@ public struct UrgramThemeDesign: Codable, Equatable {
     public init(
         id: String,
         name: String,
-        accentColor: UInt32,
-        bubbleColors: [UInt32],
+        accentColor: Int32,
+        bubbleColors: [Int32],
         wallpaperMode: Int32,
-        wallpaperColorA: UInt32,
-        wallpaperColorB: UInt32,
+        wallpaperColorA: Int32,
+        wallpaperColorB: Int32,
         bubbleRadius: Int32,
         chatFontSize: Int32? = nil,
         listFontSize: Int32? = nil,
@@ -72,19 +129,21 @@ public struct UrgramThemeDesign: Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: StringCodingKey.self)
 
-        self.id = try container.decodeIfPresent(String.self, forKey: "id") ?? ""
-        self.name = try container.decodeIfPresent(String.self, forKey: "name") ?? ""
-        self.accentColor = try container.decodeIfPresent(UInt32.self, forKey: "accentColor") ?? 0xff2aabee
-        self.bubbleColors = try container.decodeIfPresent([UInt32].self, forKey: "bubbleColors") ?? []
-        self.wallpaperMode = try container.decodeIfPresent(Int32.self, forKey: "wallpaperMode") ?? 0
-        self.wallpaperColorA = try container.decodeIfPresent(UInt32.self, forKey: "wallpaperColorA") ?? 0xff2aabee
-        self.wallpaperColorB = try container.decodeIfPresent(UInt32.self, forKey: "wallpaperColorB") ?? 0xff2aabee
-        self.bubbleRadius = try container.decodeIfPresent(Int32.self, forKey: "bubbleRadius") ?? 16
-        self.chatFontSize = try container.decodeIfPresent(Int32.self, forKey: "chatFontSize")
-        self.listFontSize = try container.decodeIfPresent(Int32.self, forKey: "listFontSize")
-        self.largeEmoji = try container.decodeIfPresent(Bool.self, forKey: "largeEmoji")
-        self.mergeBubbleCorners = try container.decodeIfPresent(Bool.self, forKey: "mergeBubbleCorners")
-        self.serifMessageFont = try container.decodeIfPresent(Bool.self, forKey: "serifMessageFont")
+        // URGRAM (build 29): every field is fault-isolated — see
+        // urgramDecodeField above.
+        self.id = urgramDecodeField({ try container.decodeIfPresent(String.self, forKey: "id") }, fallback: "")
+        self.name = urgramDecodeField({ try container.decodeIfPresent(String.self, forKey: "name") }, fallback: "")
+        self.accentColor = urgramDecodeField({ urgramDecodeArgbField(container, "accentColor") }, fallback: Int32(bitPattern: 0xff2aabee))
+        self.bubbleColors = urgramDecodeField({ urgramDecodeArgbArrayField(container, "bubbleColors") }, fallback: [])
+        self.wallpaperMode = urgramDecodeField({ try container.decodeIfPresent(Int32.self, forKey: "wallpaperMode") }, fallback: 0)
+        self.wallpaperColorA = urgramDecodeField({ urgramDecodeArgbField(container, "wallpaperColorA") }, fallback: Int32(bitPattern: 0xff2aabee))
+        self.wallpaperColorB = urgramDecodeField({ urgramDecodeArgbField(container, "wallpaperColorB") }, fallback: Int32(bitPattern: 0xff2aabee))
+        self.bubbleRadius = urgramDecodeField({ try container.decodeIfPresent(Int32.self, forKey: "bubbleRadius") }, fallback: 16)
+        self.chatFontSize = urgramDecodeOptionalField({ try container.decodeIfPresent(Int32.self, forKey: "chatFontSize") })
+        self.listFontSize = urgramDecodeOptionalField({ try container.decodeIfPresent(Int32.self, forKey: "listFontSize") })
+        self.largeEmoji = urgramDecodeOptionalField({ try container.decodeIfPresent(Bool.self, forKey: "largeEmoji") })
+        self.mergeBubbleCorners = urgramDecodeOptionalField({ try container.decodeIfPresent(Bool.self, forKey: "mergeBubbleCorners") })
+        self.serifMessageFont = urgramDecodeOptionalField({ try container.decodeIfPresent(Bool.self, forKey: "serifMessageFont") })
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -153,7 +212,11 @@ public struct UrgramSettings: Codable, Equatable {
     // into the chat input from the attachment menu) and the auto-archive
     // rule for inactive chats (0 = off, otherwise days of inactivity).
     public var replyTemplates: [String]
-    public var autoArchiveInactiveDays: Int
+    // URGRAM (build 29): Int32, not Int — Postbox's adapted keyed Codable
+    // containers have no Int overload (encode hits assertionFailure and
+    // writes Int32; decode throws), which poisoned the whole settings
+    // decode. Same for snowIntensity below.
+    public var autoArchiveInactiveDays: Int32
     // Studio V2 (main interface): hide the main chat-list navigation bar's
     // Edit / Compose / Add-Story buttons. Gated at the button rebuild in
     // ChatListLocationContext.updateChatList (ChatListController.swift).
@@ -173,7 +236,7 @@ public struct UrgramSettings: Codable, Equatable {
     // 2 = heavy. Deliberately NOT part of UrgramThemeDesign: designs are
     // shareable color themes; this is a device-local ambience preference.
     public var snowEnabled: Bool
-    public var snowIntensity: Int
+    public var snowIntensity: Int32
     // Profile identity registry: the user's own card draft (long bio +
     // social links), edited in «هويتي في أورغرام» and published to the
     // registry group from there. The banner image itself is not stored
@@ -216,14 +279,14 @@ public struct UrgramSettings: Codable, Equatable {
         studioDesigns: [UrgramThemeDesign],
         studioActiveDesignId: String?,
         replyTemplates: [String],
-        autoArchiveInactiveDays: Int,
+        autoArchiveInactiveDays: Int32,
         homeHideEditButton: Bool,
         homeHideComposeButton: Bool,
         homeHideStoryButton: Bool,
         hiddenPeerIds: [Int64],
         autoReplyLastSentAt: [String: Double],
         snowEnabled: Bool,
-        snowIntensity: Int,
+        snowIntensity: Int32,
         identityBio: String,
         identityLinks: [UrgramIdentityLink]
     ) {
@@ -325,50 +388,55 @@ public struct UrgramSettings: Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: StringCodingKey.self)
 
-        self.ghostHideRead = try container.decodeIfPresent(Bool.self, forKey: "ghostHideRead") ?? false
-        self.ghostHideTyping = try container.decodeIfPresent(Bool.self, forKey: "ghostHideTyping") ?? false
-        self.ghostHideOnline = try container.decodeIfPresent(Bool.self, forKey: "ghostHideOnline") ?? false
-        self.ghostHideStoryViews = try container.decodeIfPresent(Bool.self, forKey: "ghostHideStoryViews") ?? false
-        self.streamerMode = try container.decodeIfPresent(Bool.self, forKey: "streamerMode") ?? false
-        self.secretChatScreenshotSilent = try container.decodeIfPresent(Bool.self, forKey: "secretChatScreenshotSilent") ?? false
-        self.hidePhoneInProfile = try container.decodeIfPresent(Bool.self, forKey: "hidePhoneInProfile") ?? false
-        self.saveRestrictedBypass = try container.decodeIfPresent(Bool.self, forKey: "saveRestrictedBypass") ?? false
-        self.keepDeletedMessages = try container.decodeIfPresent(Bool.self, forKey: "keepDeletedMessages") ?? false
-        self.keepEditedMessages = try container.decodeIfPresent(Bool.self, forKey: "keepEditedMessages") ?? false
-        self.hideSponsored = try container.decodeIfPresent(Bool.self, forKey: "hideSponsored") ?? false
-        self.keywordFiltersEnabled = try container.decodeIfPresent(Bool.self, forKey: "keywordFiltersEnabled") ?? false
-        self.keywordFilters = try container.decodeIfPresent([String].self, forKey: "keywordFilters") ?? []
-        self.sendWithEnter = try container.decodeIfPresent(Bool.self, forKey: "sendWithEnter") ?? false
-        self.hideStoriesBar = try container.decodeIfPresent(Bool.self, forKey: "hideStoriesBar") ?? false
-        self.disableStories = try container.decodeIfPresent(Bool.self, forKey: "disableStories") ?? false
-        self.foldersAtBottom = try container.decodeIfPresent(Bool.self, forKey: "foldersAtBottom") ?? false
-        self.doubleTapEditOwnMessages = try container.decodeIfPresent(Bool.self, forKey: "doubleTapEditOwnMessages") ?? false
-        self.mentionAll = try container.decodeIfPresent(Bool.self, forKey: "mentionAll") ?? false
-        self.autoReplyEnabled = try container.decodeIfPresent(Bool.self, forKey: "autoReplyEnabled") ?? false
-        self.autoReplyText = try container.decodeIfPresent(String.self, forKey: "autoReplyText") ?? ""
-        self.defaultHDPhotos = try container.decodeIfPresent(Bool.self, forKey: "defaultHDPhotos") ?? false
-        self.downloadBoost = try container.decodeIfPresent(Bool.self, forKey: "downloadBoost") ?? false
-        self.voiceNoiseSuppression = try container.decodeIfPresent(Bool.self, forKey: "voiceNoiseSuppression") ?? false
-        self.callConfirmation = try container.decodeIfPresent(Bool.self, forKey: "callConfirmation") ?? false
-        self.forceTcpCalls = try container.decodeIfPresent(Bool.self, forKey: "forceTcpCalls") ?? false
-        self.translateChats = try container.decodeIfPresent(Bool.self, forKey: "translateChats") ?? false
-        self.translateOutgoingLongPress = try container.decodeIfPresent(Bool.self, forKey: "translateOutgoingLongPress") ?? false
-        self.fontChoice = try container.decodeIfPresent(String.self, forKey: "fontChoice") ?? "system"
-        self.customFontName = try container.decodeIfPresent(String.self, forKey: "customFontName")
-        self.customFontFileName = try container.decodeIfPresent(String.self, forKey: "customFontFileName")
-        self.studioDesigns = try container.decodeIfPresent([UrgramThemeDesign].self, forKey: "studioDesigns") ?? []
-        self.studioActiveDesignId = try container.decodeIfPresent(String.self, forKey: "studioActiveDesignId")
-        self.replyTemplates = try container.decodeIfPresent([String].self, forKey: "replyTemplates") ?? []
-        self.autoArchiveInactiveDays = try container.decodeIfPresent(Int.self, forKey: "autoArchiveInactiveDays") ?? 0
-        self.homeHideEditButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideEditButton") ?? false
-        self.homeHideComposeButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideComposeButton") ?? false
-        self.homeHideStoryButton = try container.decodeIfPresent(Bool.self, forKey: "homeHideStoryButton") ?? false
-        self.hiddenPeerIds = try container.decodeIfPresent([Int64].self, forKey: "hiddenPeerIds") ?? []
-        self.autoReplyLastSentAt = try container.decodeIfPresent([String: Double].self, forKey: "autoReplyLastSentAt") ?? [:]
-        self.snowEnabled = try container.decodeIfPresent(Bool.self, forKey: "snowEnabled") ?? false
-        self.snowIntensity = try container.decodeIfPresent(Int.self, forKey: "snowIntensity") ?? 0
-        self.identityBio = try container.decodeIfPresent(String.self, forKey: "identityBio") ?? ""
-        self.identityLinks = try container.decodeIfPresent([UrgramIdentityLink].self, forKey: "identityLinks") ?? []
+        // URGRAM (build 29): every field is fault-isolated — a field whose
+        // stored form this build cannot read (notably the Int fields of
+        // build ≤28 blobs, written as Int32 boxes with no matching keyed
+        // decode) falls back to its default alone instead of aborting the
+        // whole settings decode and resetting everything.
+        self.ghostHideRead = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "ghostHideRead") }, fallback: false)
+        self.ghostHideTyping = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "ghostHideTyping") }, fallback: false)
+        self.ghostHideOnline = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "ghostHideOnline") }, fallback: false)
+        self.ghostHideStoryViews = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "ghostHideStoryViews") }, fallback: false)
+        self.streamerMode = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "streamerMode") }, fallback: false)
+        self.secretChatScreenshotSilent = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "secretChatScreenshotSilent") }, fallback: false)
+        self.hidePhoneInProfile = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "hidePhoneInProfile") }, fallback: false)
+        self.saveRestrictedBypass = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "saveRestrictedBypass") }, fallback: false)
+        self.keepDeletedMessages = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "keepDeletedMessages") }, fallback: false)
+        self.keepEditedMessages = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "keepEditedMessages") }, fallback: false)
+        self.hideSponsored = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "hideSponsored") }, fallback: false)
+        self.keywordFiltersEnabled = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "keywordFiltersEnabled") }, fallback: false)
+        self.keywordFilters = urgramDecodeField({ try container.decodeIfPresent([String].self, forKey: "keywordFilters") }, fallback: [])
+        self.sendWithEnter = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "sendWithEnter") }, fallback: false)
+        self.hideStoriesBar = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "hideStoriesBar") }, fallback: false)
+        self.disableStories = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "disableStories") }, fallback: false)
+        self.foldersAtBottom = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "foldersAtBottom") }, fallback: false)
+        self.doubleTapEditOwnMessages = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "doubleTapEditOwnMessages") }, fallback: false)
+        self.mentionAll = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "mentionAll") }, fallback: false)
+        self.autoReplyEnabled = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "autoReplyEnabled") }, fallback: false)
+        self.autoReplyText = urgramDecodeField({ try container.decodeIfPresent(String.self, forKey: "autoReplyText") }, fallback: "")
+        self.defaultHDPhotos = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "defaultHDPhotos") }, fallback: false)
+        self.downloadBoost = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "downloadBoost") }, fallback: false)
+        self.voiceNoiseSuppression = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "voiceNoiseSuppression") }, fallback: false)
+        self.callConfirmation = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "callConfirmation") }, fallback: false)
+        self.forceTcpCalls = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "forceTcpCalls") }, fallback: false)
+        self.translateChats = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "translateChats") }, fallback: false)
+        self.translateOutgoingLongPress = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "translateOutgoingLongPress") }, fallback: false)
+        self.fontChoice = urgramDecodeField({ try container.decodeIfPresent(String.self, forKey: "fontChoice") }, fallback: "system")
+        self.customFontName = urgramDecodeOptionalField({ try container.decodeIfPresent(String.self, forKey: "customFontName") })
+        self.customFontFileName = urgramDecodeOptionalField({ try container.decodeIfPresent(String.self, forKey: "customFontFileName") })
+        self.studioDesigns = urgramDecodeField({ try container.decodeIfPresent([UrgramThemeDesign].self, forKey: "studioDesigns") }, fallback: [])
+        self.studioActiveDesignId = urgramDecodeOptionalField({ try container.decodeIfPresent(String.self, forKey: "studioActiveDesignId") })
+        self.replyTemplates = urgramDecodeField({ try container.decodeIfPresent([String].self, forKey: "replyTemplates") }, fallback: [])
+        self.autoArchiveInactiveDays = urgramDecodeField({ try container.decodeIfPresent(Int32.self, forKey: "autoArchiveInactiveDays") }, fallback: 0)
+        self.homeHideEditButton = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "homeHideEditButton") }, fallback: false)
+        self.homeHideComposeButton = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "homeHideComposeButton") }, fallback: false)
+        self.homeHideStoryButton = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "homeHideStoryButton") }, fallback: false)
+        self.hiddenPeerIds = urgramDecodeField({ try container.decodeIfPresent([Int64].self, forKey: "hiddenPeerIds") }, fallback: [])
+        self.autoReplyLastSentAt = urgramDecodeField({ try container.decodeIfPresent([String: Double].self, forKey: "autoReplyLastSentAt") }, fallback: [:])
+        self.snowEnabled = urgramDecodeField({ try container.decodeIfPresent(Bool.self, forKey: "snowEnabled") }, fallback: false)
+        self.snowIntensity = urgramDecodeField({ try container.decodeIfPresent(Int32.self, forKey: "snowIntensity") }, fallback: 0)
+        self.identityBio = urgramDecodeField({ try container.decodeIfPresent(String.self, forKey: "identityBio") }, fallback: "")
+        self.identityLinks = urgramDecodeField({ try container.decodeIfPresent([UrgramIdentityLink].self, forKey: "identityLinks") }, fallback: [])
     }
 
     public func encode(to encoder: Encoder) throws {

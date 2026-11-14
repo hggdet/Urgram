@@ -313,9 +313,9 @@ final class UrgramSnowOverlayManager {
         }
         if let snowView = self.snowView {
             containerView.bringSubviewToFront(snowView)
-            if self.appliedIntensity != settings.snowIntensity {
-                snowView.configure(intensity: settings.snowIntensity)
-                self.appliedIntensity = settings.snowIntensity
+            if self.appliedIntensity != Int(settings.snowIntensity) {
+                snowView.configure(intensity: Int(settings.snowIntensity))
+                self.appliedIntensity = Int(settings.snowIntensity)
             }
         }
     }

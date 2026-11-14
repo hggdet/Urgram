@@ -61,11 +61,13 @@ func urgramStudioSwatchImage(_ argb: UInt32, diameter: CGFloat = 29.0) -> UIImag
 }
 
 func urgramStudioWallpaper(for design: UrgramThemeDesign) -> TelegramWallpaper? {
+    // URGRAM (build 29): design colors are stored as Int32 bit patterns;
+    // TelegramWallpaper wants the UInt32 ARGB value.
     switch design.wallpaperMode {
     case 1:
-        return .color(design.wallpaperColorA)
+        return .color(UInt32(bitPattern: design.wallpaperColorA))
     case 2:
-        return .gradient(TelegramWallpaper.Gradient(id: nil, colors: [design.wallpaperColorA, design.wallpaperColorB], settings: WallpaperSettings()))
+        return .gradient(TelegramWallpaper.Gradient(id: nil, colors: [UInt32(bitPattern: design.wallpaperColorA), UInt32(bitPattern: design.wallpaperColorB)], settings: WallpaperSettings()))
     default:
         return nil
     }
@@ -78,7 +80,7 @@ func urgramStudioWallpaper(for design: UrgramThemeDesign) -> TelegramWallpaper? 
 // A photo/file chat wallpaper the user set themselves is not clobbered.
 func urgramStudioApplyDesign(context: AccountContext, design: UrgramThemeDesign) {
     let wallpaper = urgramStudioWallpaper(for: design)
-    let accentEntry = PresentationThemeAccentColor(index: -1, baseColor: .custom, accentColor: design.accentColor, bubbleColors: design.bubbleColors, wallpaper: wallpaper)
+    let accentEntry = PresentationThemeAccentColor(index: -1, baseColor: .custom, accentColor: UInt32(bitPattern: design.accentColor), bubbleColors: design.bubbleColors.map { UInt32(bitPattern: $0) }, wallpaper: wallpaper)
     let _ = updatePresentationThemeSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
         let autoNightModeTriggered = context.sharedContext.currentPresentationData.with { $0 }.autoNightModeTriggered
         var currentTheme = current.currentModeTheme
@@ -209,12 +211,12 @@ private struct UrgramStudioPreset {
 }
 
 private let urgramStudioPresets: [UrgramStudioPreset] = [
-    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-ocean", name: "Ocean", accentColor: 0xff0077b6, bubbleColors: [0xff00b4d8, 0xff0077b6], wallpaperMode: 2, wallpaperColorA: 0xff03045e, wallpaperColorB: 0xff0077b6, bubbleRadius: 18), en: "Ocean", ar: "المحيط"),
-    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-sunset", name: "Sunset", accentColor: 0xffff7b54, bubbleColors: [0xffffb26b, 0xffff7b54], wallpaperMode: 2, wallpaperColorA: 0xff2d4059, wallpaperColorB: 0xffff7b54, bubbleRadius: 16), en: "Sunset", ar: "الغروب"),
-    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-forest", name: "Forest", accentColor: 0xff2e933c, bubbleColors: [0xff6bcb77, 0xff2e933c], wallpaperMode: 2, wallpaperColorA: 0xff0b3d2e, wallpaperColorB: 0xff2e933c, bubbleRadius: 14), en: "Forest", ar: "الغابة"),
-    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-rose", name: "Rose", accentColor: 0xffe75480, bubbleColors: [0xffff9fb2, 0xffe75480], wallpaperMode: 2, wallpaperColorA: 0xff3a1c40, wallpaperColorB: 0xffe75480, bubbleRadius: 20), en: "Rose", ar: "الورد"),
-    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-midnight", name: "Midnight", accentColor: 0xff5e5ce6, bubbleColors: [0xff4a4a8a, 0xff2c2c54], wallpaperMode: 2, wallpaperColorA: 0xff0f0f1e, wallpaperColorB: 0xff23233a, bubbleRadius: 12, mergeBubbleCorners: true), en: "Midnight", ar: "منتصف الليل"),
-    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-sand", name: "Sand", accentColor: 0xffb08968, bubbleColors: [0xffddbea9, 0xffb08968], wallpaperMode: 1, wallpaperColorA: 0xffede0d4, wallpaperColorB: 0xffede0d4, bubbleRadius: 16), en: "Sand", ar: "الرمال")
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-ocean", name: "Ocean", accentColor: Int32(bitPattern: 0xff0077b6), bubbleColors: [Int32(bitPattern: 0xff00b4d8), Int32(bitPattern: 0xff0077b6)], wallpaperMode: 2, wallpaperColorA: Int32(bitPattern: 0xff03045e), wallpaperColorB: Int32(bitPattern: 0xff0077b6), bubbleRadius: 18), en: "Ocean", ar: "المحيط"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-sunset", name: "Sunset", accentColor: Int32(bitPattern: 0xffff7b54), bubbleColors: [Int32(bitPattern: 0xffffb26b), Int32(bitPattern: 0xffff7b54)], wallpaperMode: 2, wallpaperColorA: Int32(bitPattern: 0xff2d4059), wallpaperColorB: Int32(bitPattern: 0xffff7b54), bubbleRadius: 16), en: "Sunset", ar: "الغروب"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-forest", name: "Forest", accentColor: Int32(bitPattern: 0xff2e933c), bubbleColors: [Int32(bitPattern: 0xff6bcb77), Int32(bitPattern: 0xff2e933c)], wallpaperMode: 2, wallpaperColorA: Int32(bitPattern: 0xff0b3d2e), wallpaperColorB: Int32(bitPattern: 0xff2e933c), bubbleRadius: 14), en: "Forest", ar: "الغابة"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-rose", name: "Rose", accentColor: Int32(bitPattern: 0xffe75480), bubbleColors: [Int32(bitPattern: 0xffff9fb2), Int32(bitPattern: 0xffe75480)], wallpaperMode: 2, wallpaperColorA: Int32(bitPattern: 0xff3a1c40), wallpaperColorB: Int32(bitPattern: 0xffe75480), bubbleRadius: 20), en: "Rose", ar: "الورد"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-midnight", name: "Midnight", accentColor: Int32(bitPattern: 0xff5e5ce6), bubbleColors: [Int32(bitPattern: 0xff4a4a8a), Int32(bitPattern: 0xff2c2c54)], wallpaperMode: 2, wallpaperColorA: Int32(bitPattern: 0xff0f0f1e), wallpaperColorB: Int32(bitPattern: 0xff23233a), bubbleRadius: 12, mergeBubbleCorners: true), en: "Midnight", ar: "منتصف الليل"),
+    UrgramStudioPreset(design: UrgramThemeDesign(id: "preset-sand", name: "Sand", accentColor: Int32(bitPattern: 0xffb08968), bubbleColors: [Int32(bitPattern: 0xffddbea9), Int32(bitPattern: 0xffb08968)], wallpaperMode: 1, wallpaperColorA: 0xffede0d4, wallpaperColorB: 0xffede0d4, bubbleRadius: 16), en: "Sand", ar: "الرمال")
 ]
 
 // URGRAM (Studio V2): display name for a stored font-size raw value
@@ -253,7 +255,7 @@ func urgramStudioNextFontSizeRaw(_ rawValue: Int32) -> Int32 {
 
 // URGRAM (ambience — snow): display name for a snow intensity value
 // (0 = light, 1 = medium, 2 = heavy).
-func urgramStudioSnowIntensityName(_ value: Int, isArabic: Bool) -> String {
+func urgramStudioSnowIntensityName(_ value: Int32, isArabic: Bool) -> String {
     switch value {
     case 2:
         return isArabic ? "كثيف" : "Heavy"
@@ -770,14 +772,14 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
     case preset(UrgramThemeDesign, String, Int)
 
     case interfaceHeader
-    case accent(UInt32)
+    case accent(Int32)
     case interfaceFooter
 
     case bubblesHeader
     case bubbleDerived(Bool)
-    case bubbleColor1(UInt32)
+    case bubbleColor1(Int32)
     case bubbleGradient(Bool)
-    case bubbleColor2(UInt32)
+    case bubbleColor2(Int32)
     case radius(Int32)
     case mergeCorners(Bool)
 
@@ -791,8 +793,8 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
     case wallpaperDefault(Bool)
     case wallpaperSolid(Bool)
     case wallpaperGradient(Bool)
-    case wallpaperColorA(UInt32, Int32)
-    case wallpaperColorB(UInt32)
+    case wallpaperColorA(Int32, Int32)
+    case wallpaperColorB(Int32)
 
     case applyAction
     case saveAction
@@ -808,7 +810,7 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
 
     case ambienceHeader
     case snowEnabled(Bool)
-    case snowIntensity(Int)
+    case snowIntensity(Int32)
     case ambienceFooter
 
     case designsHeader
@@ -1010,13 +1012,13 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
         case .presetsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Ready Designs", "تصاميم جاهزة"), sectionId: self.section)
         case let .preset(design, name, _):
-            return ItemListPeerActionItem(presentationData: presentationData, systemStyle: .glass, icon: urgramStudioSwatchImage(design.accentColor), title: name, sectionId: self.section, height: .generic, color: .accent, editing: false, action: {
+            return ItemListPeerActionItem(presentationData: presentationData, systemStyle: .glass, icon: urgramStudioSwatchImage(UInt32(bitPattern: design.accentColor)), title: name, sectionId: self.section, height: .generic, color: .accent, editing: false, action: {
                 arguments.applyPreset(design)
             })
         case .interfaceHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: urgramText(presentationData, "Interface Colors", "ألوان الواجهة"), sectionId: self.section)
         case let .accent(value):
-            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Accent Color", "لون التمييز"), label: urgramStudioHexString(value), sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Accent Color", "لون التمييز"), label: urgramStudioHexString(UInt32(bitPattern: value)), sectionId: self.section, style: .blocks, action: {
                 arguments.openColorEditor(.accent)
             })
         case .interfaceFooter:
@@ -1034,7 +1036,7 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
                 }
             })
         case let .bubbleColor1(value):
-            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Outgoing Bubble Color", "لون فقاعة الرسائل الصادرة"), label: urgramStudioHexString(value), sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Outgoing Bubble Color", "لون فقاعة الرسائل الصادرة"), label: urgramStudioHexString(UInt32(bitPattern: value)), sectionId: self.section, style: .blocks, action: {
                 arguments.openColorEditor(.bubble1)
             })
         case let .bubbleGradient(checked):
@@ -1048,7 +1050,7 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
                 }
             })
         case let .bubbleColor2(value):
-            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Outgoing Bubble Color 2", "لون فقاعة الرسائل الصادرة الثاني"), label: urgramStudioHexString(value), sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Outgoing Bubble Color 2", "لون فقاعة الرسائل الصادرة الثاني"), label: urgramStudioHexString(UInt32(bitPattern: value)), sectionId: self.section, style: .blocks, action: {
                 arguments.openColorEditor(.bubble2)
             })
         case .backgroundHeader:
@@ -1066,11 +1068,11 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
                 arguments.updateDraft { $0.wallpaperMode = 2 }
             })
         case let .wallpaperColorA(value, mode):
-            return ItemListDisclosureItem(presentationData: presentationData, title: mode == 2 ? urgramText(presentationData, "Background Color 1", "لون الخلفية الأول") : urgramText(presentationData, "Background Color", "لون الخلفية"), label: urgramStudioHexString(value), sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: mode == 2 ? urgramText(presentationData, "Background Color 1", "لون الخلفية الأول") : urgramText(presentationData, "Background Color", "لون الخلفية"), label: urgramStudioHexString(UInt32(bitPattern: value)), sectionId: self.section, style: .blocks, action: {
                 arguments.openColorEditor(.wallpaperA)
             })
         case let .wallpaperColorB(value):
-            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Background Color 2", "لون الخلفية الثاني"), label: urgramStudioHexString(value), sectionId: self.section, style: .blocks, action: {
+            return ItemListDisclosureItem(presentationData: presentationData, title: urgramText(presentationData, "Background Color 2", "لون الخلفية الثاني"), label: urgramStudioHexString(UInt32(bitPattern: value)), sectionId: self.section, style: .blocks, action: {
                 arguments.openColorEditor(.wallpaperB)
             })
         case let .radius(value):
@@ -1159,7 +1161,7 @@ private enum UrgramStudioControllerEntry: ItemListNodeEntry {
             return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "No saved designs yet. Shape your look above, then tap Save Design. Tap a design to apply, rename, share or delete it.", "لا تصاميم محفوظة بعد. شكّل مظهرك أعلاه ثم اضغط حفظ التصميم. اضغط أي تصميم لتطبيقه أو إعادة تسميته أو مشاركته أو حذفه.")), sectionId: self.section)
         case let .design(design, isActive, _):
             let title = design.name + (isActive ? (isArabic ? " • مفعّل" : " • Active") : "")
-            return ItemListPeerActionItem(presentationData: presentationData, systemStyle: .glass, icon: urgramStudioSwatchImage(design.accentColor), title: title, sectionId: self.section, height: .generic, color: .accent, editing: false, action: {
+            return ItemListPeerActionItem(presentationData: presentationData, systemStyle: .glass, icon: urgramStudioSwatchImage(UInt32(bitPattern: design.accentColor)), title: title, sectionId: self.section, height: .generic, color: .accent, editing: false, action: {
                 arguments.designAction(design)
             })
         }
@@ -1171,7 +1173,7 @@ private func urgramStudioControllerEntries(presentationData: PresentationData, s
     let isArabic = presentationData.strings.primaryComponent.languageCode.hasPrefix("ar")
 
     let draftWallpaper = urgramStudioWallpaper(for: parameters)
-    let previewTheme = customizePresentationTheme(presentationData.theme, editing: false, accentColor: UIColor(argb: parameters.accentColor), outgoingAccentColor: nil, backgroundColors: [], bubbleColors: parameters.bubbleColors.map { $0 & 0x00ffffff }, animateBubbleColors: nil, wallpaper: draftWallpaper, baseColor: .custom)
+    let previewTheme = customizePresentationTheme(presentationData.theme, editing: false, accentColor: UIColor(argb: UInt32(bitPattern: parameters.accentColor)), outgoingAccentColor: nil, backgroundColors: [], bubbleColors: parameters.bubbleColors.map { UInt32(bitPattern: $0) & 0x00ffffff }, animateBubbleColors: nil, wallpaper: draftWallpaper, baseColor: .custom)
     // URGRAM (Studio V2): the preview reflects the draft's own values for the
     // new parameters, falling back to the live presentation data.
     let previewCorners = PresentationChatBubbleCorners(mainRadius: CGFloat(parameters.bubbleRadius), auxiliaryRadius: CGFloat(parameters.bubbleRadius / 2), mergeBubbleCorners: parameters.mergeBubbleCorners ?? presentationData.chatBubbleCorners.mergeBubbleCorners, hasTails: presentationData.chatBubbleCorners.hasTails, bubbleMode: presentationData.chatBubbleCorners.bubbleMode, serifMessageText: parameters.serifMessageFont ?? presentationData.chatBubbleCorners.serifMessageText)
@@ -1335,11 +1337,11 @@ public func urgramStudioController(context: AccountContext) -> ViewController {
         initialDraft = UrgramStudioDraft(parameters: UrgramThemeDesign(
             id: "",
             name: "",
-            accentColor: initialPresentationData.theme.list.itemAccentColor.argb,
+            accentColor: Int32(bitPattern: initialPresentationData.theme.list.itemAccentColor.argb),
             bubbleColors: [],
             wallpaperMode: 0,
-            wallpaperColorA: 0xff2aabee,
-            wallpaperColorB: 0xff7b2ff7,
+            wallpaperColorA: Int32(bitPattern: 0xff2aabee),
+            wallpaperColorB: Int32(bitPattern: 0xff7b2ff7),
             bubbleRadius: Int32(initialPresentationData.chatBubbleCorners.mainRadius)
         ), sourceDesignId: nil)
     }
@@ -1367,39 +1369,41 @@ public func urgramStudioController(context: AccountContext) -> ViewController {
             let title: String
             let initialColor: UInt32
             let applyColor: (inout UrgramThemeDesign, UInt32) -> Void
+            // URGRAM (build 29): the color editor works in UInt32 ARGB; the
+            // design stores Int32 bit patterns — convert at this boundary.
             switch target {
             case .accent:
                 title = isArabic ? "لون التمييز" : "Accent Color"
-                initialColor = draft.parameters.accentColor
-                applyColor = { parameters, color in parameters.accentColor = color }
+                initialColor = UInt32(bitPattern: draft.parameters.accentColor)
+                applyColor = { parameters, color in parameters.accentColor = Int32(bitPattern: color) }
             case .bubble1:
                 title = isArabic ? "لون فقاعة الرسائل الصادرة" : "Outgoing Bubble Color"
-                initialColor = draft.parameters.bubbleColors.first ?? draft.parameters.accentColor
+                initialColor = UInt32(bitPattern: draft.parameters.bubbleColors.first ?? draft.parameters.accentColor)
                 applyColor = { parameters, color in
                     if parameters.bubbleColors.isEmpty {
-                        parameters.bubbleColors = [color]
+                        parameters.bubbleColors = [Int32(bitPattern: color)]
                     } else {
-                        parameters.bubbleColors[0] = color
+                        parameters.bubbleColors[0] = Int32(bitPattern: color)
                     }
                 }
             case .bubble2:
                 title = isArabic ? "لون فقاعة الرسائل الصادرة الثاني" : "Outgoing Bubble Color 2"
-                initialColor = draft.parameters.bubbleColors.count > 1 ? draft.parameters.bubbleColors[1] : draft.parameters.accentColor
+                initialColor = UInt32(bitPattern: draft.parameters.bubbleColors.count > 1 ? draft.parameters.bubbleColors[1] : draft.parameters.accentColor)
                 applyColor = { parameters, color in
                     if parameters.bubbleColors.count > 1 {
-                        parameters.bubbleColors[1] = color
+                        parameters.bubbleColors[1] = Int32(bitPattern: color)
                     } else if parameters.bubbleColors.count == 1 {
-                        parameters.bubbleColors.append(color)
+                        parameters.bubbleColors.append(Int32(bitPattern: color))
                     }
                 }
             case .wallpaperA:
                 title = isArabic ? "لون الخلفية" : "Background Color"
-                initialColor = draft.parameters.wallpaperColorA
-                applyColor = { parameters, color in parameters.wallpaperColorA = color }
+                initialColor = UInt32(bitPattern: draft.parameters.wallpaperColorA)
+                applyColor = { parameters, color in parameters.wallpaperColorA = Int32(bitPattern: color) }
             case .wallpaperB:
                 title = isArabic ? "لون الخلفية الثاني" : "Background Color 2"
-                initialColor = draft.parameters.wallpaperColorB
-                applyColor = { parameters, color in parameters.wallpaperColorB = color }
+                initialColor = UInt32(bitPattern: draft.parameters.wallpaperColorB)
+                applyColor = { parameters, color in parameters.wallpaperColorB = Int32(bitPattern: color) }
             }
             pushImpl?(urgramStudioColorController(context: context, title: title, initialColor: initialColor, updated: { color in
                 var updatedDraft = draftValue.with { $0 }
@@ -1450,11 +1454,11 @@ public func urgramStudioController(context: AccountContext) -> ViewController {
                 let resetDraft = UrgramStudioDraft(parameters: UrgramThemeDesign(
                     id: "",
                     name: "",
-                    accentColor: PresentationThemeBaseColor.blue.color.argb,
+                    accentColor: Int32(bitPattern: PresentationThemeBaseColor.blue.color.argb),
                     bubbleColors: [],
                     wallpaperMode: 0,
-                    wallpaperColorA: 0xff2aabee,
-                    wallpaperColorB: 0xff7b2ff7,
+                    wallpaperColorA: Int32(bitPattern: 0xff2aabee),
+                    wallpaperColorB: Int32(bitPattern: 0xff7b2ff7),
                     bubbleRadius: 16
                 ), sourceDesignId: nil)
                 let _ = draftValue.swap(resetDraft)

@@ -26,7 +26,7 @@ public func urgramRunAutoArchiveIfNeeded(context: AccountContext) {
     }
     UserDefaults.standard.set(now, forKey: lastRunKey)
 
-    let threshold = Int32(now) - Int32(days) * 86400
+    let threshold = Int32(now) - days * 86400
     let _ = (context.engine.messages.chatList(group: .root, count: 1000)
     |> filter { !$0.isLoading }
     |> take(1)

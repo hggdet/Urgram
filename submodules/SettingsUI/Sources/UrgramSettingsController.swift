@@ -117,7 +117,7 @@ private enum UrgramSettingsControllerEntry: ItemListNodeEntry {
     case mentionAll(Bool)
     case autoReplyEnabled(Bool)
     case openTemplates(Int)
-    case autoArchive(Int)
+    case autoArchive(Int32)
     case autoReplyTemplate(String)
     case openHiddenChats(Int)
     case chatsFooter
