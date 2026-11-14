@@ -80,6 +80,13 @@ private enum UrgramHiddenChatsControllerEntry: ItemListNodeEntry {
         case let .peer(peer, _):
             return ItemListPeerItem(presentationData: presentationData, systemStyle: .glass, dateTimeFormat: presentationData.dateTimeFormat, nameDisplayOrder: presentationData.nameDisplayOrder, context: arguments.context, peer: peer, presence: nil, text: .none, label: .none, editing: ItemListPeerItemEditing(editable: false, editing: false, revealed: nil), switchValue: nil, enabled: true, selectable: true, sectionId: self.section, action: {
                 arguments.peerAction(peer)
+            }, setPeerIdWithRevealedOptions: { _, _ in
+                // Rows are non-editable (revealed: nil), so swipe-reveal never opens.
+            }, removePeer: { id in
+                // "Remove from this list" means unhide the chat.
+                UrgramSettingsStore.shared.update { settings in
+                    settings.hiddenPeerIds.removeAll(where: { $0 == id.toInt64() })
+                }
             })
         case .footer:
             return ItemListTextItem(presentationData: presentationData, text: .plain(urgramText(presentationData, "Hidden chats are removed from the main chat list only. They still receive messages and appear in search.", "المحادثات المخفية تُزال من قائمة المحادثات الرئيسية فقط. ما زالت تستقبل الرسائل وتظهر في البحث.")), sectionId: self.section)
