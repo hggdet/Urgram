@@ -313,8 +313,6 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     private var experimentalUISettingsDisposable: Disposable?
     // URGRAM
     private var urgramSettingsDisposable: Disposable?
-    // URGRAM (identity registry)
-    private var urgramIdentityCacheDisposable: Disposable?
     // URGRAM (build 20)
     private var urgramAutoArchiveDisposable: Disposable?
     
@@ -590,16 +588,6 @@ public final class SharedAccountContextImpl: SharedAccountContext {
                 Font.urgramCustomFamilyName = UrgramFontManager.resolvedFamilyName(settings: settings)
                 // URGRAM (item 21): keep the media picker's HD default in sync.
                 UserDefaults.standard.set(settings.defaultHDPhotos, forKey: "TG_photoHighQuality_v0")
-            }
-        })
-
-        // URGRAM (identity registry): seed the resolved-identity cache
-        // store and keep it in sync with its shared data.
-        UrgramIdentityCacheStore.shared.attach(accountManager: self.accountManager)
-        self.urgramIdentityCacheDisposable = (self.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.urgramIdentityCache])
-        |> deliverOnMainQueue).start(next: { sharedData in
-            if let cache = sharedData.entries[ApplicationSpecificSharedDataKeys.urgramIdentityCache]?.get(UrgramIdentityCache.self) {
-                UrgramIdentityCacheStore.shared.applyExternal(cache)
             }
         })
 

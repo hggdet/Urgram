@@ -2242,19 +2242,15 @@ public final class ChatListNode: ListViewImpl {
             self.statePromise.get(),
             contacts,
             chatListFilters,
-            accountIsPremium,
-            UrgramSettingsStore.shared.settingsSignal
+            accountIsPremium
         )
-        |> mapToQueue { (hideArchivedFolderByDefault, displayArchiveIntro, storageInfo, savedMessagesPeer, updateAndFilter, state, contacts, chatListFilters, accountIsPremiumAndPeer: ChatListNodeAccountPeerState, urgramSettings) -> Signal<ChatListNodeListViewTransition, NoError> in
+        |> mapToQueue { (hideArchivedFolderByDefault, displayArchiveIntro, storageInfo, savedMessagesPeer, updateAndFilter, state, contacts, chatListFilters, accountIsPremiumAndPeer: ChatListNodeAccountPeerState) -> Signal<ChatListNodeListViewTransition, NoError> in
             let (update, filter) = updateAndFilter
             let accountIsPremium = accountIsPremiumAndPeer.isPremium
-
+            
             let previousHideArchivedFolderByDefaultValue = previousHideArchivedFolderByDefault.swap(hideArchivedFolderByDefault)
-
+            
             let innerIsMainTab = location == .chatList(groupId: .root) && chatListFilter == nil
-            // URGRAM (hidden chats): peers the user hid from the main chat
-            // list. Only the main (root, unfiltered) list is affected.
-            let urgramHiddenPeerIds: Set<Int64> = innerIsMainTab ? Set(urgramSettings.hiddenPeerIds) : []
             
             var (rawEntries, isLoading) = chatListNodeEntriesForView(view: update.list, state: state, savedMessagesPeer: savedMessagesPeer, foundPeers: state.foundPeers, hideArchivedFolderByDefault: hideArchivedFolderByDefault, displayArchiveIntro: displayArchiveIntro, mode: mode, chatListLocation: location, contacts: contacts, accountPeerId: accountPeerId, isMainTab: innerIsMainTab)
             if isSideList, case .savedMessagesChats = location, let parentPeer = accountIsPremiumAndPeer.parentPeer, let allThreadsEntry = chatListSideListAllThreadsEntry(entries: rawEntries, parentPeer: parentPeer) {
@@ -2269,9 +2265,6 @@ public final class ChatListNode: ListViewImpl {
                     
                     switch mode {
                     case .chatList:
-                        if urgramHiddenPeerIds.contains(peer.peerId.toInt64()) {
-                            return false
-                        }
                         isEmpty = false
                         return true
                     case let .peers(filter, _, _, _, _, _, _):
